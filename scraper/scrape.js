@@ -197,9 +197,9 @@ async function createGitHubIssue(flight, newPrice, currency, previousLow, dataPo
     ? (((previousLow - newPrice) / previousLow) * 100).toFixed(1)
     : null;
 
-  const title = `\u2708\uFE0F New low: ${newPrice} ${currency} \u2014 ${flight.label}`;
+  const title = `New low: ${newPrice} ${currency} — ${flight.label}`;
   const body = [
-    `## New Price Low Detected`,
+    `## New Price Low: ${flight.label}`,
     ``,
     `| Detail | Value |`,
     `|--------|-------|`,
@@ -207,7 +207,8 @@ async function createGitHubIssue(flight, newPrice, currency, previousLow, dataPo
     previousLow ? `| Previous Low | ${previousLow} ${currency} |` : null,
     drop ? `| Drop | ${drop}% |` : null,
     `| Timestamp | ${new Date().toISOString()} |`,
-    `| Data Points | ${dataPoints} |`,
+    ``,
+    `**[Book this flight](${flight.url})**`,
     ``,
     `[View Price Chart](${chartUrl})`,
   ]
