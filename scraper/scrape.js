@@ -124,6 +124,67 @@ async function scrapeFlight(browser, flight) {
   }
 }
 
+async function createScrapeFailureIssue(flight) {
+  const token = process.env.GITHUB_TOKEN;
+  const repo = process.env.GITHUB_REPOSITORY;
+  if (!token || !repo) return;
+
+  const title = `Scrape failed: ${flight.label}`;
+  const body = [
+    `## Scrape Failure`,
+    ``,
+    `Flight **${flight.label}** failed to return a price after 2 attempts (with a 5-minute retry).`,
+    ``,
+    `| Detail | Value |`,
+    `|--------|-------|`,
+    `| Flight ID | \`${flight.id}\` |`,
+    `| Timestamp | ${new Date().toISOString()} |`,
+    ``,
+    `Check \`data/debug-${flight.id}.png\` for a screenshot of what the page looked like.`,
+    ``,
+    `Common causes: Google CAPTCHA, changed DOM selectors, network timeout.`,
+  ].join("\n");
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/issues`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/vnd.github+json",
+      },
+      body: JSON.stringify({ title, body, labels: ["scrape-failure"] }),
+    });
+    if (res.ok) {
+      const issue = await res.json();
+      console.log(`  Failure issue created: #${issue.number}`);
+    } else {
+      console.error(`  Failed to create failure issue: ${res.status}`);
+    }
+  } catch (err) {
+    console.error(`  Error creating failure issue: ${err.message}`);
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function scrapeFlightWithRetry(browser, flight) {
+  const result = await scrapeFlight(browser, flight);
+  if (result.price !== null) return result;
+
+  console.log(`  No price found for ${flight.id}, retrying in 5 minutes...`);
+  await sleep(5 * 60 * 1000);
+
+  const retry = await scrapeFlight(browser, flight);
+  if (retry.price !== null) return retry;
+
+  console.error(`  Scrape failed after retry for ${flight.id}`);
+  await createScrapeFailureIssue(flight);
+  return retry;
+}
+
 async function createGitHubIssue(flight, newPrice, currency, previousLow, dataPoints, chartUrl) {
   const token = process.env.GITHUB_TOKEN;
   const repo = process.env.GITHUB_REPOSITORY;
@@ -209,7 +270,7 @@ async function main() {
 
   try {
     for (const flight of config) {
-      const result = await scrapeFlight(browser, flight);
+      const result = await scrapeFlightWithRetry(browser, flight);
       results.push({ flight, result });
     }
   } finally {
