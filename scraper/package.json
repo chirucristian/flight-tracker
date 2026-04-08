@@ -1,0 +1,12 @@
+{
+  "name": "flight-tracker-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node scrape.js",
+    "postinstall": "npx playwright install chromium --with-deps"
+  },
+  "dependencies": {
+    "playwright": "^1.52.0"
+  }
+}

@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flight Price Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 0.25rem;
+    }
+
+    header p {
+      color: #94a3b8;
+      font-size: 0.95rem;
+    }
+
+    #last-updated {
+      color: #64748b;
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Summary cards */
+    .cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      flex: 1 1 280px;
+      min-width: 260px;
+      position: relative;
+    }
+
+    .card .label {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-bottom: 0.75rem;
+      line-height: 1.4;
+    }
+
+    .card .latest-price {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 0.5rem;
+    }
+
+    .card .stats {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      font-size: 0.8rem;
+      color: #94a3b8;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .card .stats span {
+      white-space: nowrap;
+    }
+
+    .card .indicator {
+      position: absolute;
+      top: 1.25rem;
+      right: 1.25rem;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .indicator.green { background: #10b981; box-shadow: 0 0 6px #10b98188; }
+    .indicator.amber { background: #f59e0b; box-shadow: 0 0 6px #f59e0b88; }
+    .indicator.red   { background: #ef4444; box-shadow: 0 0 6px #ef444488; }
+
+    /* Flight selector */
+    .selector {
+      margin-bottom: 1.5rem;
+    }
+
+    .selector select {
+      background: #1e293b;
+      color: #e2e8f0;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.9rem;
+      cursor: pointer;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .selector select:focus {
+      outline: none;
+      border-color: #06b6d4;
+    }
+
+    /* Chart */
+    .chart-wrapper {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: #64748b;
+    }
+
+    .empty-state .icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .empty-state p {
+      max-width: 400px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      color: #475569;
+      font-size: 0.8rem;
+      padding: 1rem 0;
+      border-top: 1px solid #1e293b;
+    }
+
+    footer a {
+      color: #06b6d4;
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 600px) {
+      header h1 { font-size: 1.5rem; }
+      .card .latest-price { font-size: 1.5rem; }
+      .container { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>&#9992;&#65039; Flight Price Tracker</h1>
+      <p>Tracking Google Flights prices hourly</p>
+      <div id="last-updated"></div>
+    </header>
+
+    <div id="cards" class="cards"></div>
+
+    <div id="selector-container" class="selector" style="display:none;">
+      <select id="flight-select"></select>
+    </div>
+
+    <div id="chart-container" class="chart-wrapper" style="display:none;">
+      <canvas id="price-chart"></canvas>
+    </div>
+
+    <div id="empty-state" class="empty-state" style="display:none;">
+      <div class="icon">&#9992;&#65039;</div>
+      <p>No data yet. Go to the Actions tab on GitHub and run the workflow manually to start tracking.</p>
+    </div>
+
+    <footer>
+      Data updates hourly via GitHub Actions &middot;
+      <a href="https://github.com/" id="repo-link">View on GitHub</a>
+    </footer>
+  </div>
+
+  <script>
+    let chart = null;
+
+    async function init() {
+      let data;
+      try {
+        const res = await fetch('data/prices.json');
+        if (!res.ok) throw new Error('not found');
+        data = await res.json();
+      } catch {
+        data = {};
+      }
+
+      const flightIds = Object.keys(data).filter(id => data[id].length > 0);
+
+      if (flightIds.length === 0) {
+        document.getElementById('empty-state').style.display = 'block';
+        return;
+      }
+
+      // Render summary cards
+      const cardsEl = document.getElementById('cards');
+      const cardData = {};
+
+      for (const id of flightIds) {
+        const entries = data[id];
+        const prices = entries.filter(e => e.price !== null).map(e => e.price);
+        const currency = entries.find(e => e.currency)?.currency || 'RON';
+        const latest = entries[entries.length - 1];
+        const latestPrice = latest.price;
+
+        const min = prices.length ? Math.min(...prices) : null;
+        const max = prices.length ? Math.max(...prices) : null;
+        const avg = prices.length ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) : null;
+
+        // Color indicator
+        let indicatorClass = 'amber';
+        if (latestPrice !== null && min !== null && max !== null) {
+          const range = max - min;
+          if (range === 0 || latestPrice <= min * 1.1) {
+            indicatorClass = 'green';
+          } else if (latestPrice >= max * 0.9) {
+            indicatorClass = 'red';
+          }
+        }
+
+        cardData[id] = { min, max, avg, currency, prices };
+
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="indicator ${indicatorClass}"></div>
+          <div class="label">${escapeHtml(id)}</div>
+          <div class="latest-price">${latestPrice !== null ? latestPrice.toLocaleString() + ' ' + currency : 'N/A'}</div>
+          <div class="stats">
+            <span>Min: ${min !== null ? min.toLocaleString() : '-'}</span>
+            <span>Max: ${max !== null ? max.toLocaleString() : '-'}</span>
+            <span>Avg: ${avg !== null ? avg.toLocaleString() : '-'}</span>
+            <span>Points: ${entries.length}</span>
+          </div>
+        `;
+        cardsEl.appendChild(card);
+      }
+
+      // Update last-updated
+      const allEntries = flightIds.flatMap(id => data[id]);
+      const lastTimestamp = allEntries.reduce((latest, e) => {
+        return e.timestamp > latest ? e.timestamp : latest;
+      }, '');
+      if (lastTimestamp) {
+        document.getElementById('last-updated').textContent =
+          'Last update: ' + new Date(lastTimestamp).toLocaleString();
+      }
+
+      // Flight selector
+      if (flightIds.length > 1) {
+        const selectorContainer = document.getElementById('selector-container');
+        selectorContainer.style.display = 'block';
+        const select = document.getElementById('flight-select');
+        for (const id of flightIds) {
+          const opt = document.createElement('option');
+          opt.value = id;
+          opt.textContent = id;
+          select.appendChild(opt);
+        }
+        select.addEventListener('change', () => renderChart(data, select.value, cardData));
+      }
+
+      // Show chart
+      document.getElementById('chart-container').style.display = 'block';
+      renderChart(data, flightIds[0], cardData);
+    }
+
+    function renderChart(data, flightId, cardData) {
+      const entries = data[flightId];
+      const info = cardData[flightId];
+      const currency = info.currency;
+      const minPrice = info.min;
+
+      const dataPoints = entries.map(e => ({
+        x: new Date(e.timestamp),
+        y: e.price
+      }));
+
+      const ctx = document.getElementById('price-chart').getContext('2d');
+
+      if (chart) chart.destroy();
+
+      // Gradient fill
+      const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+      gradient.addColorStop(0, 'rgba(6, 182, 212, 0.15)');
+      gradient.addColorStop(1, 'rgba(6, 182, 212, 0)');
+
+      const datasets = [
+        {
+          label: `Price (${currency})`,
+          data: dataPoints,
+          borderColor: '#06b6d4',
+          backgroundColor: gradient,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#06b6d4',
+          pointBorderColor: '#0f172a',
+          pointBorderWidth: 2,
+          spanGaps: false,
+        }
+      ];
+
+      // All-time low annotation via a second dataset (dashed line)
+      if (minPrice !== null) {
+        datasets.push({
+          label: `All-time low: ${minPrice.toLocaleString()} ${currency}`,
+          data: dataPoints.map(p => ({ x: p.x, y: minPrice })),
+          borderColor: '#f59e0b',
+          borderDash: [6, 4],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          fill: false,
+          tension: 0,
+        });
+      }
+
+      const isMobile = window.innerWidth < 600;
+
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+          responsive: true,
+          aspectRatio: isMobile ? 1 : 2,
+          interaction: {
+            mode: 'index',
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              labels: {
+                color: '#94a3b8',
+                font: { family: 'DM Sans' },
+              }
+            },
+            tooltip: {
+              backgroundColor: '#1e293b',
+              titleColor: '#f1f5f9',
+              bodyColor: '#e2e8f0',
+              borderColor: '#334155',
+              borderWidth: 1,
+              titleFont: { family: 'DM Sans' },
+              bodyFont: { family: 'JetBrains Mono' },
+              callbacks: {
+                title: (items) => {
+                  if (!items.length) return '';
+                  return new Date(items[0].parsed.x).toLocaleString();
+                },
+                label: (item) => {
+                  if (item.datasetIndex === 1) return null;
+                  const val = item.parsed.y;
+                  return val !== null ? `${val.toLocaleString()} ${currency}` : 'No data';
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                tooltipFormat: 'MMM d HH:mm',
+                displayFormats: {
+                  hour: 'MMM d HH:mm',
+                  day: 'MMM d',
+                }
+              },
+              ticks: { color: '#64748b', font: { family: 'DM Sans', size: 11 } },
+              grid: { color: '#1e293b' },
+            },
+            y: {
+              title: {
+                display: true,
+                text: currency,
+                color: '#64748b',
+                font: { family: 'DM Sans' },
+              },
+              ticks: {
+                color: '#64748b',
+                font: { family: 'JetBrains Mono', size: 11 },
+              },
+              grid: { color: '#1e293b44' },
+            }
+          }
+        }
+      });
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    init();
+  </script>
+</body>
+</html>
