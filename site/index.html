@@ -255,10 +255,7 @@
       <p>No data yet. Go to the Actions tab on GitHub and run the workflow manually to start tracking.</p>
     </div>
 
-    <footer>
-      Data updates hourly via GitHub Actions &middot;
-      <a href="https://github.com/" id="repo-link">View on GitHub</a>
-    </footer>
+    <footer></footer>
   </div>
 
   <script>
@@ -486,10 +483,12 @@
             x: {
               type: 'time',
               time: {
+                unit: 'hour',
+                stepSize: 1,
                 tooltipFormat: 'MMM d HH:mm',
                 displayFormats: { hour: 'MMM d HH:mm', day: 'MMM d' }
               },
-              ticks: { color: '#94a3b8', font: { family: 'Inter', size: 10 } },
+              ticks: { color: '#94a3b8', font: { family: 'Inter', size: 10 }, maxRotation: 45 },
               grid: { color: '#f1f5f9' },
               border: { color: '#e2e8f0' },
             },
