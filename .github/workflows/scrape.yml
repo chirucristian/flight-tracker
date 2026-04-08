@@ -7,6 +7,8 @@ on:
 permissions:
   contents: write
   issues: write
+  pages: write
+  id-token: write
 
 jobs:
   scrape:
@@ -32,3 +34,26 @@ jobs:
           git add data/
           git diff --staged --quiet || git commit -m "price update $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           git push
+
+  deploy:
+    needs: scrape
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Pull latest data
+        run: git pull
+      - name: Prepare deploy folder
+        run: |
+          mkdir _deploy
+          cp site/* _deploy/
+          cp -r data _deploy/data
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _deploy
+      - id: deployment
+        uses: actions/deploy-pages@v4
