@@ -1,0 +1,26 @@
+{
+  "otp-ory-may31": [
+    {
+      "timestamp": "2026-04-09T00:51:21.347Z",
+      "price": 479,
+      "currency": "RON",
+      "raw": "RON 479"
+    }
+  ],
+  "otp-ory-may29": [
+    {
+      "timestamp": "2026-04-09T00:51:21.729Z",
+      "price": 659,
+      "currency": "RON",
+      "raw": "RON 659"
+    }
+  ],
+  "otp-ory-may30": [
+    {
+      "timestamp": "2026-04-09T00:51:22.053Z",
+      "price": 609,
+      "currency": "RON",
+      "raw": "RON 609"
+    }
+  ]
+}
