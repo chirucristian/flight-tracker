@@ -127,7 +127,10 @@ async function scrapeFlight(browser, flight) {
 async function createScrapeFailureIssue(flight) {
   const token = process.env.GITHUB_TOKEN;
   const repo = process.env.GITHUB_REPOSITORY;
-  if (!token || !repo) return;
+  if (!token || !repo) {
+    console.log("  Skipping failure issue (no token/repo)");
+    return;
+  }
 
   const title = `Scrape failed: ${flight.label}`;
   const body = [
@@ -159,7 +162,8 @@ async function createScrapeFailureIssue(flight) {
       const issue = await res.json();
       console.log(`  Failure issue created: #${issue.number}`);
     } else {
-      console.error(`  Failed to create failure issue: ${res.status}`);
+      const text = await res.text();
+      console.error(`  Failed to create failure issue: ${res.status} ${text}`);
     }
   } catch (err) {
     console.error(`  Error creating failure issue: ${err.message}`);
@@ -295,7 +299,7 @@ async function main() {
       currency: result.currency,
       raw: result.raw,
     };
-    const previousEntries = data[flight.id];
+    const previousEntries = data[flight.id].slice();
 
     data[flight.id].push(entry);
 
