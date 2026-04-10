@@ -234,7 +234,7 @@
     <header>
       <h1>Flight Price Tracker</h1>
       <div class="header-meta">
-        <span class="header-subtitle">Tracking Google Flights prices hourly</span>
+        <span class="header-subtitle">Tracking Wizzair prices hourly</span>
         <span id="last-updated"></span>
       </div>
     </header>
@@ -261,33 +261,28 @@
   <script>
     let chart = null;
 
-    // Format id like "otp-ory-may29" → "OTP → ORY · May 29"
+    // Format id like "buh-dbv-2026-07-17" → "BUH → DBV · Jul 17"
     function formatFlightId(id) {
       const parts = id.split('-');
-      if (parts.length >= 3) {
+      if (parts.length >= 4) {
         const origin = parts[0].toUpperCase();
         const dest = parts[1].toUpperCase();
-        const datePart = parts.slice(2).join('');
-        const monthNames = { jan:'Jan', feb:'Feb', mar:'Mar', apr:'Apr', may:'May', jun:'Jun',
-                             jul:'Jul', aug:'Aug', sep:'Sep', oct:'Oct', nov:'Nov', dec:'Dec' };
-        const m = datePart.match(/^([a-z]+)(\d+)$/i);
-        if (m) {
-          const month = monthNames[m[1].toLowerCase()] || m[1];
-          return `${origin} \u2192 ${dest} \u00b7 ${month} ${m[2]}`;
-        }
+        const dateStr = parts.slice(2).join('-');
+        const d = new Date(dateStr + 'T00:00:00');
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return `${origin} \u2192 ${dest} \u00b7 ${months[d.getMonth()]} ${d.getDate()}`;
       }
       return id;
     }
 
-    // Sort flight ids soonest to latest by parsing monthday from id
+    // Sort flight ids by date
     function sortedFlightIds(ids) {
-      const monthOrder = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
       return [...ids].sort((a, b) => {
         const dateValue = id => {
           const parts = id.split('-');
-          const datePart = parts.slice(2).join('');
-          const m = datePart.match(/^([a-z]+)(\d+)$/i);
-          if (m) return (monthOrder[m[1].toLowerCase()] || 0) * 100 + parseInt(m[2]);
+          if (parts.length >= 4) {
+            return new Date(parts.slice(2).join('-') + 'T00:00:00').getTime();
+          }
           return 0;
         };
         return dateValue(a) - dateValue(b);
