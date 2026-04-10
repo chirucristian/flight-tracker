@@ -112,5 +112,29 @@
       "currency": "RON",
       "raw": "RON 529"
     }
+  ],
+  "buh-ory-2026-05-30": [
+    {
+      "timestamp": "2026-04-10T00:45:56.866Z",
+      "price": null,
+      "currency": null,
+      "raw": null
+    }
+  ],
+  "buh-ory-2026-05-31": [
+    {
+      "timestamp": "2026-04-10T00:45:56.867Z",
+      "price": null,
+      "currency": null,
+      "raw": null
+    }
+  ],
+  "buh-ory-2026-06-01": [
+    {
+      "timestamp": "2026-04-10T00:45:56.867Z",
+      "price": null,
+      "currency": null,
+      "raw": null
+    }
   ]
 }
