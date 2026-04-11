@@ -167,7 +167,7 @@ async function scrapeFlight(browser, flight) {
     console.log(`  Navigating...`);
     console.log(`  >>> TARGET URL: ${url}`);
     const navStart = Date.now();
-    await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
     const currentUrl = page.url();
     console.log(`  Page loaded in ${Date.now() - navStart}ms`);
     console.log(`  >>> LANDED URL: ${currentUrl}`);
