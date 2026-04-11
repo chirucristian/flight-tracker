@@ -1,4 +1,4 @@
-const { chromium } = require("playwright");
+const { firefox } = require("playwright");
 const fs = require("fs");
 const path = require("path");
 
@@ -163,15 +163,6 @@ async function scrapeFlight(browser, flight) {
   });
 
   try {
-    // Anti-detection: hide webdriver flag before any page JS runs
-    await page.addInitScript(() => {
-      Object.defineProperty(navigator, "webdriver", { get: () => false });
-      // Remove Playwright/Chrome automation indicators
-      delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
-      delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
-      delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
-    });
-
     // Step 1: Visit homepage first to establish session cookies
     console.log(`  Visiting homepage first...`);
     await page.goto("https://www.wizzair.com/en-gb", { waitUntil: "domcontentloaded", timeout: 60000 });
@@ -297,24 +288,14 @@ async function createScrapeFailureIssue(flight) {
   }
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 async function scrapeFlightWithRetry(browser, flight) {
   const result = await scrapeFlight(browser, flight);
-  if (result.price !== null) return result;
-
-  const id = flightId(flight);
-  console.log(`\n  RETRY: No price found for ${id}, retrying in 5 minutes...`);
-  await sleep(5 * 60 * 1000);
-
-  const retry = await scrapeFlight(browser, flight);
-  if (retry.price !== null) return retry;
-
-  console.error(`  FAILED: Scrape failed after retry for ${id}`);
-  await createScrapeFailureIssue(flight);
-  return retry;
+  if (result.price === null) {
+    const id = flightId(flight);
+    console.error(`  FAILED: No price found for ${id}`);
+    await createScrapeFailureIssue(flight);
+  }
+  return result;
 }
 
 async function createGitHubIssue(flight, newPrice, currency, previousLow, chartUrl) {
@@ -396,10 +377,7 @@ async function main() {
   }
   console.log(`Existing price data: ${Object.keys(data).length} flight(s) tracked`);
 
-  const browser = await chromium.launch({
-    headless: true,
-    args: ["--disable-blink-features=AutomationControlled"],
-  });
+  const browser = await firefox.launch({ headless: true });
   console.log("Browser launched (headless)");
 
   const results = [];
