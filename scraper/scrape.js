@@ -392,7 +392,10 @@ async function main() {
   }
   console.log(`Existing price data: ${Object.keys(data).length} flight(s) tracked`);
 
-  const browser = await chromium.launch({ headless: "new" });
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--disable-blink-features=AutomationControlled"],
+  });
   console.log("Browser launched (headless)");
 
   const results = [];
