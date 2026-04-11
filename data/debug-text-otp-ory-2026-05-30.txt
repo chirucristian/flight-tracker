@@ -22,35 +22,9 @@ TOTAL
  Seats
  Services
  Payment
-Critical error
-Bucharest Otopeni
-OTP
-Paris Orly
-ORY
-SHOW PRICE CHART 
-Thu 21, May
-Fri 22, May
-Sat 23, May
-Sun 24, May
-Mon 25, May
-Tue 26, May
-Wed 27, May
-Thu 28, May
-Fri 29, May
-Sat 30, May
-Sun 31, May
-MAY
-MAY
-Mon 01, Jun
-Tue 02, Jun
-Wed 03, Jun
-Thu 04, Jun
-Fri 05, Jun
-Sat 06, Jun
-Sun 07, Jun
-Mon 08, Jun
-JUNE
-JUNE
+Day interval must be less or equal to10
+Bucharest Otopeni (OTP)  Paris Orly (ORY)
+Sat, 30 May 2026
 
 No flights on this date.
 
