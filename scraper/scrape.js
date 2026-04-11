@@ -1,4 +1,3 @@
-const { firefox } = require("playwright");
 const fs = require("fs");
 const path = require("path");
 
@@ -18,27 +17,6 @@ function flightLabel(f) {
   return `${f.from} → ${f.to} · ${f.date} · ${f.time}`;
 }
 
-function timeDiffMin(a, b) {
-  const [h1, m1] = a.split(":").map(Number);
-  const [h2, m2] = b.split(":").map(Number);
-  return Math.abs(h1 * 60 + m1 - (h2 * 60 + m2));
-}
-
-function parsePrice(raw) {
-  if (!raw) return null;
-  let cleaned = raw.toString().replace(/[^0-9.,]/g, "").trim();
-  if (!cleaned) return null;
-  if (/^\d{1,3}(\.\d{3})*(,\d{1,2})?$/.test(cleaned)) {
-    cleaned = cleaned.replace(/\./g, "").replace(",", ".");
-  } else if (/^\d{1,3}(,\d{3})*(\.\d{1,2})?$/.test(cleaned)) {
-    cleaned = cleaned.replace(/,/g, "");
-  } else if (/^\d+(,)\d{1,2}$/.test(cleaned)) {
-    cleaned = cleaned.replace(",", ".");
-  }
-  const num = parseFloat(cleaned);
-  return isNaN(num) ? null : num;
-}
-
 function calculateRealPrice(chartPrice) {
   const withMarkup = chartPrice + 50;
   // Round up so the last digit is 9
@@ -46,316 +24,99 @@ function calculateRealPrice(chartPrice) {
   return Math.ceil((withMarkup - 9) / 10) * 10 + 9;
 }
 
-function humanDelay(min = 800, max = 2500) {
-  const ms = Math.floor(Math.random() * (max - min) + min);
-  return new Promise((resolve) => setTimeout(resolve, ms));
+async function getApiUrl() {
+  console.log("  Discovering Wizzair API version...");
+  const res = await fetch("https://wizzair.com/static_fe/metadata.json");
+  if (!res.ok) throw new Error(`metadata.json returned ${res.status}`);
+  const meta = await res.json();
+  const apiUrl = meta.apiUrl;
+  if (!apiUrl) throw new Error("No apiUrl in metadata.json");
+  console.log(`  API base URL: ${apiUrl}`);
+  return apiUrl;
 }
 
-async function humanScroll(page) {
-  const scrollY = Math.floor(Math.random() * 300 + 100);
-  await page.mouse.move(
-    Math.floor(Math.random() * 800 + 200),
-    Math.floor(Math.random() * 400 + 100)
-  );
-  await page.evaluate((y) => window.scrollBy(0, y), scrollY);
-}
-
-function findBestMatch(candidates, targetTime) {
-  if (candidates.length === 0) return null;
-  const sorted = candidates
-    .map((c) => ({ ...c, diff: timeDiffMin(c.departureTime, targetTime) }))
-    .sort((a, b) => a.diff - b.diff);
-  if (sorted[0].diff <= 180) return sorted[0];
-  return null;
-}
-
-async function extractFromDom(page, targetTime) {
-  const flights = await page.evaluate(() => {
-    const selectors = [
-      '[class*="flight-select"]',
-      '[class*="flight-row"]',
-      '[class*="flight-card"]',
-      '[data-test*="flight"]',
-      '[class*="timetable"]',
-    ];
-    let matchedSelector = null;
-    let elements = [];
-    for (const sel of selectors) {
-      const els = document.querySelectorAll(sel);
-      if (els.length > 0) {
-        elements = Array.from(els);
-        matchedSelector = sel;
-        break;
-      }
-    }
-
-    return {
-      matchedSelector,
-      elementCount: elements.length,
-      flights: elements.map((el) => {
-        const text = el.textContent || "";
-        const timeMatch = text.match(/(\d{2}:\d{2})/);
-        const priceMatch = text.match(/(\d[\d.,]*)\s*(RON|EUR|€|lei|GBP|£)/i);
-        return {
-          hasTime: !!timeMatch,
-          hasPrice: !!priceMatch,
-          departureTime: timeMatch?.[1] || null,
-          priceRaw: priceMatch?.[1] || null,
-          currency: priceMatch?.[2] || null,
-          raw: priceMatch?.[0] || null,
-          textSnippet: text.substring(0, 200),
-        };
-      }),
-    };
-  });
-
-  console.log(`    DOM selector matched: ${flights.matchedSelector || "none"} (${flights.elementCount} elements)`);
-  for (const f of flights.flights) {
-    console.log(`    DOM element: time=${f.departureTime} price=${f.priceRaw} ${f.currency} | "${f.textSnippet.substring(0, 80)}..."`);
-  }
-
-  const candidates = flights.flights
-    .filter((f) => f.hasTime && f.hasPrice)
-    .map((f) => {
-      let cur = f.currency;
-      if (cur === "€") cur = "EUR";
-      if (cur === "£") cur = "GBP";
-      return {
-        departureTime: f.departureTime,
-        price: parsePrice(f.priceRaw),
-        currency: cur,
-        raw: f.raw,
-      };
-    })
-    .filter((f) => f.price !== null);
-
-  console.log(`    DOM candidates with time+price: ${candidates.length}`);
-  return findBestMatch(candidates, targetTime);
-}
-
-function extractFromText(text, targetTime) {
-  const lines = text.split("\n");
-  const candidates = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const timeMatch = lines[i].match(/(\d{2}:\d{2})/);
-    if (!timeMatch) continue;
-
-    const nearby = lines.slice(Math.max(0, i - 3), i + 8).join(" ");
-    const priceMatch = nearby.match(/(\d[\d.,]*)\s*(RON|EUR|€|lei|GBP|£)/i);
-    if (priceMatch) {
-      let cur = priceMatch[2];
-      if (cur === "€") cur = "EUR";
-      if (cur === "£") cur = "GBP";
-      const price = parsePrice(priceMatch[1]);
-      if (price !== null) {
-        console.log(`    Text match: line ${i + 1} time=${timeMatch[1]} price=${price} ${cur}`);
-        candidates.push({
-          departureTime: timeMatch[1],
-          price,
-          currency: cur,
-          raw: priceMatch[0],
-        });
-      }
-    }
-  }
-
-  console.log(`    Text candidates: ${candidates.length}`);
-  return findBestMatch(candidates, targetTime);
-}
-
-async function scrapeFlight(browser, flight) {
-  const url = buildUrl(flight.from, flight.to, flight.date);
+async function fetchFareChart(apiUrl, flight) {
   const id = flightId(flight);
   const label = flightLabel(flight);
 
   console.log(`\n========================================`);
-  console.log(`Scraping: ${label}`);
-  console.log(`  URL: ${url}`);
+  console.log(`Fetching: ${label}`);
   console.log(`  ID: ${id}`);
-  console.log(`  Target time: ${flight.time}`);
   console.log(`========================================`);
 
-  const page = await browser.newPage({
-    userAgent:
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    viewport: { width: 1280, height: 900 },
-    locale: "en-GB",
+  const url = `${apiUrl}/Api/asset/farechart`;
+  const body = {
+    isRescueFare: false,
+    adultCount: 1,
+    childCount: 0,
+    dayInterval: 60,
+    wdc: false,
+    isFlightChange: false,
+    flightList: [
+      {
+        departureStation: flight.from,
+        arrivalStation: flight.to,
+        date: `${flight.date}T00:00:00`,
+      },
+    ],
+  };
+
+  console.log(`  POST ${url}`);
+  console.log(`  Body: ${JSON.stringify(body)}`);
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      Accept: "application/json, text/plain, */*",
+      "Accept-Language": "en-GB,en;q=0.9",
+      Origin: "https://www.wizzair.com",
+      Referer: "https://www.wizzair.com/",
+    },
+    body: JSON.stringify(body),
   });
 
-  try {
-    // Capture unblocked API responses (flightDates + farechart return 200, search gets 429'd by KPSDK)
-    const flightDatesResponses = [];
-    const fareChartResponses = [];
+  console.log(`  Response: ${res.status} ${res.statusText}`);
 
-    // Intercept farechart requests to set the period to 60 days
-    await page.route("**/Api/asset/farechart**", async (route, request) => {
-      const postData = request.postData();
-      console.log(`  [REQ ${request.method()}] ${request.url().split("?")[0]}`);
-      if (postData) {
-        console.log(`    Original body: ${postData}`);
-        try {
-          const body = JSON.parse(postData);
-          body.dayInterval = 60;
-          const modified = JSON.stringify(body);
-          console.log(`    Modified body: ${modified}`);
-          await route.continue({ postData: modified });
-          return;
-        } catch (e) {
-          console.log(`    Failed to modify farechart body: ${e.message}`);
-        }
-      }
-      await route.continue();
-    });
-
-    page.on("request", (request) => {
-      const reqUrl = request.url();
-      if (reqUrl.includes("/Api/search/search")) {
-        const postData = request.postData();
-        console.log(`  [REQ ${request.method()}] ${reqUrl.split("?")[0]}`);
-        if (postData) console.log(`    Body: ${postData}`);
-      }
-    });
-
-    page.on("response", async (response) => {
-      const reqUrl = response.url();
-      const status = response.status();
-      const isKpsdk = /kpsdk|x-kpsdk/i.test(reqUrl);
-      const isBotDetect = /recaptcha|captcha|challenge/i.test(reqUrl);
-      const is429 = status === 429;
-
-      if (isKpsdk || is429) {
-        console.log(`  [${is429 ? "429" : "KPSDK"} ${status}] ${reqUrl}`);
-      } else if (isBotDetect) {
-        console.log(`  [BOT-DETECT ${status}] ${reqUrl.split("?")[0]}`);
-      }
-
-      // Capture the non-blocked endpoints that carry price data
-      if (status === 200) {
-        try {
-          if (reqUrl.includes("/Api/search/flightDates")) {
-            const json = await response.json();
-            flightDatesResponses.push(json);
-            console.log(`  [CAPTURED] flightDates response`);
-          } else if (reqUrl.includes("/Api/asset/farechart")) {
-            const json = await response.json();
-            fareChartResponses.push(json);
-            console.log(`  [CAPTURED] farechart response`);
-          }
-        } catch (e) {
-          // ignore parse errors
-        }
-      }
-    });
-
-    // Step 1: Visit homepage — establish session cookies
-    console.log(`  Visiting homepage first...`);
-    await page.goto("https://www.wizzair.com/en-gb", { waitUntil: "domcontentloaded", timeout: 60000 });
-    console.log(`  Homepage loaded`);
-    await humanDelay(2000, 4000);
-    await page.mouse.move(640, 350);
-    await humanDelay(500, 1200);
-    await humanScroll(page);
-    await humanDelay(1000, 2000);
-
-    // Cookie consent
-    try {
-      const acceptBtn = page.locator('button:has-text("Accept all")').first();
-      if (await acceptBtn.isVisible({ timeout: 3000 })) {
-        await humanDelay(500, 1500);
-        await acceptBtn.click();
-        console.log(`  Cookie consent accepted`);
-        await humanDelay(1500, 3000);
-      }
-    } catch (e) {
-      console.log(`  Cookie handling: ${e.message}`);
-    }
-
-    await page.mouse.move(400, 200);
-    await humanDelay(800, 1500);
-
-    // Step 2: Navigate to flight search
-    console.log(`  >>> TARGET URL: ${url}`);
-    const navStart = Date.now();
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
-    const currentUrl = page.url();
-    console.log(`  Page loaded in ${Date.now() - navStart}ms`);
-    console.log(`  >>> LANDED URL: ${currentUrl}`);
-
-    // Human-like: interact while content loads
-    await humanDelay(2000, 4000);
-    await page.mouse.move(640, 450);
-    await humanDelay(1000, 2000);
-    await humanScroll(page);
-    await humanDelay(1500, 3000);
-    await page.mouse.move(500, 300);
-    await humanDelay(2000, 4000);
-
-    // Screenshot + text for debugging
-    const ssPath = path.join(DATA_DIR, `debug-${id}.png`);
-    await page.screenshot({ path: ssPath, fullPage: true });
-    console.log(`  Screenshot saved: debug-${id}.png`);
-    const pageText = await page.evaluate(() => document.body.innerText);
-    const textPath = path.join(DATA_DIR, `debug-text-${id}.txt`);
-    fs.writeFileSync(textPath, pageText);
-    console.log(`  Page text saved: debug-text-${id}.txt (${pageText.length} chars)`);
-
-    // Save captured API data for debugging
-    if (flightDatesResponses.length > 0) {
-      fs.writeFileSync(path.join(DATA_DIR, `debug-flightDates-${id}.json`), JSON.stringify(flightDatesResponses, null, 2));
-    }
-    if (fareChartResponses.length > 0) {
-      fs.writeFileSync(path.join(DATA_DIR, `debug-farechart-${id}.json`), JSON.stringify(fareChartResponses, null, 2));
-    }
-
-    // Strategy 1: farechart API (not blocked by KPSDK — has per-date prices)
-    console.log(`  Strategy 1: farechart API (${fareChartResponses.length} responses)`);
-    for (const data of fareChartResponses) {
-      const flights = data.outboundFlights || [];
-      for (const entry of flights) {
-        const entryDate = (entry.date || "").substring(0, 10);
-        if (entryDate === flight.date && entry.priceType === "price" && entry.price?.amount > 0) {
-          const chartPrice = entry.price.amount;
-          const price = calculateRealPrice(chartPrice);
-          const currency = entry.price.currencyCode;
-          console.log(`  >>> FOUND via farechart: chart=${chartPrice}, real=${price} ${currency} (date ${entryDate})`);
-          return { price, currency, raw: `${price} ${currency}` };
-        }
-      }
-      console.log(`    No price match in farechart for ${flight.date}`);
-    }
-
-    // Strategy 2: DOM scraping (in case search API wasn't blocked this time)
-    if (!pageText.includes("No flights on this date")) {
-      console.log(`  Strategy 2: DOM scraping`);
-      const domResult = await extractFromDom(page, flight.time);
-      if (domResult) {
-        console.log(`  >>> FOUND via DOM: ${domResult.price} ${domResult.currency}`);
-        return { price: domResult.price, currency: domResult.currency, raw: domResult.raw };
-      }
-      console.log(`  DOM: no matching flight found`);
-
-      // Strategy 3: Full page text parsing
-      console.log(`  Strategy 3: Text parsing`);
-      const textResult = extractFromText(pageText, flight.time);
-      if (textResult) {
-        console.log(`  >>> FOUND via text: ${textResult.price} ${textResult.currency}`);
-        return { price: textResult.price, currency: textResult.currency, raw: textResult.raw };
-      }
-      console.log(`  Text: no matching flight found`);
-    } else {
-      console.log(`  Page says "No flights on this date" (search API likely 429'd)`);
-    }
-
-    console.log(`  ALL STRATEGIES FAILED — no price found`);
+  if (!res.ok) {
+    const text = await res.text();
+    console.error(`  Error body: ${text.substring(0, 500)}`);
     return { price: null, currency: null, raw: null };
-  } catch (err) {
-    console.error(`  FATAL ERROR scraping ${id}: ${err.message}`);
-    console.error(`  Stack: ${err.stack}`);
-    return { price: null, currency: null, raw: null };
-  } finally {
-    await page.close();
   }
+
+  const data = await res.json();
+
+  // Save debug response
+  fs.writeFileSync(
+    path.join(DATA_DIR, `debug-farechart-${id}.json`),
+    JSON.stringify(data, null, 2)
+  );
+  console.log(`  Saved debug response to debug-farechart-${id}.json`);
+
+  const flights = data.outboundFlights || [];
+  console.log(`  Got ${flights.length} outbound flight entries`);
+
+  for (const entry of flights) {
+    const entryDate = (entry.date || "").substring(0, 10);
+    if (
+      entryDate === flight.date &&
+      entry.priceType === "price" &&
+      entry.price?.amount > 0
+    ) {
+      const chartPrice = entry.price.amount;
+      const price = calculateRealPrice(chartPrice);
+      const currency = entry.price.currencyCode;
+      console.log(
+        `  >>> FOUND: chart=${chartPrice}, real=${price} ${currency} (date ${entryDate})`
+      );
+      return { price, currency, raw: `${price} ${currency}` };
+    }
+  }
+
+  console.log(`  No price match for ${flight.date}`);
+  return { price: null, currency: null, raw: null };
 }
 
 async function createScrapeFailureIssue(flight) {
@@ -372,14 +133,12 @@ async function createScrapeFailureIssue(flight) {
   const body = [
     `## Scrape Failure`,
     ``,
-    `Flight **${label}** failed to return a price after 2 attempts.`,
+    `Flight **${label}** failed to return a price.`,
     ``,
     `| Detail | Value |`,
     `|--------|-------|`,
     `| Flight ID | \`${id}\` |`,
     `| Timestamp | ${new Date().toISOString()} |`,
-    ``,
-    `Check \`data/debug-${id}.png\` for a screenshot.`,
   ].join("\n");
 
   try {
@@ -397,21 +156,13 @@ async function createScrapeFailureIssue(flight) {
       console.log(`  Failure issue created: #${issue.number}`);
     } else {
       const text = await res.text();
-      console.error(`  Failed to create failure issue: ${res.status} ${text}`);
+      console.error(
+        `  Failed to create failure issue: ${res.status} ${text}`
+      );
     }
   } catch (err) {
     console.error(`  Error creating failure issue: ${err.message}`);
   }
-}
-
-async function scrapeFlightWithRetry(browser, flight) {
-  const result = await scrapeFlight(browser, flight);
-  if (result.price === null) {
-    const id = flightId(flight);
-    console.error(`  FAILED: No price found for ${id}`);
-    await createScrapeFailureIssue(flight);
-  }
-  return result;
 }
 
 async function createGitHubIssue(flight, newPrice, currency, previousLow, chartUrl) {
@@ -470,7 +221,7 @@ async function createGitHubIssue(flight, newPrice, currency, previousLow, chartU
 
 async function main() {
   console.log(`\n${"=".repeat(50)}`);
-  console.log(`Flight Tracker - Wizzair Scraper`);
+  console.log(`Flight Tracker - Wizzair Farechart API`);
   console.log(`Started: ${new Date().toISOString()}`);
   console.log(`${"=".repeat(50)}\n`);
 
@@ -493,19 +244,16 @@ async function main() {
   }
   console.log(`Existing price data: ${Object.keys(data).length} flight(s) tracked`);
 
-  const browser = await firefox.launch({ headless: true });
-  console.log("Browser launched (headless)");
+  const apiUrl = await getApiUrl();
 
   const results = [];
-
-  try {
-    for (const flight of flights) {
-      const result = await scrapeFlightWithRetry(browser, flight);
-      results.push({ flight, result });
+  for (const flight of flights) {
+    const result = await fetchFareChart(apiUrl, flight);
+    if (result.price === null) {
+      console.error(`  FAILED: No price found for ${flightId(flight)}`);
+      await createScrapeFailureIssue(flight);
     }
-  } finally {
-    await browser.close();
-    console.log("\nBrowser closed");
+    results.push({ flight, result });
   }
 
   const repo = process.env.GITHUB_REPOSITORY || "";
@@ -516,7 +264,9 @@ async function main() {
   console.log(`\n--- Results ---`);
   for (const { flight, result } of results) {
     const id = flightId(flight);
-    console.log(`  ${id}: ${result.price !== null ? `${result.price} ${result.currency}` : "FAILED"}`);
+    console.log(
+      `  ${id}: ${result.price !== null ? `${result.price} ${result.currency}` : "FAILED"}`
+    );
 
     if (!data[id]) data[id] = [];
 
