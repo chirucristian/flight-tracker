@@ -221,6 +221,20 @@ async function scrapeFlight(browser, flight) {
       }
     });
 
+    // Intercept farechart request: set wdc:true to get standard (non-WDC) prices
+    await page.route("**/Api/asset/farechart", async (route) => {
+      const request = route.request();
+      const postData = request.postData();
+      if (postData) {
+        const body = JSON.parse(postData);
+        body.wdc = true;
+        console.log(`  [ROUTE] Modified farechart request: wdc=${body.wdc}`);
+        await route.continue({ postData: JSON.stringify(body) });
+      } else {
+        await route.continue();
+      }
+    });
+
     // Step 1: Visit homepage — establish session cookies
     console.log(`  Visiting homepage first...`);
     await page.goto("https://www.wizzair.com/en-gb", { waitUntil: "domcontentloaded", timeout: 60000 });
