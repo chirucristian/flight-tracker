@@ -172,20 +172,13 @@ async function scrapeFlight(browser, flight) {
       delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
     });
 
-    // Navigation
-    console.log(`  Navigating...`);
-    console.log(`  >>> TARGET URL: ${url}`);
-    const navStart = Date.now();
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
-    const currentUrl = page.url();
-    console.log(`  Page loaded in ${Date.now() - navStart}ms`);
-    console.log(`  >>> LANDED URL: ${currentUrl}`);
-    if (currentUrl !== url) {
-      console.log(`  >>> REDIRECT DETECTED`);
-    }
+    // Step 1: Visit homepage first to establish session cookies
+    console.log(`  Visiting homepage first...`);
+    await page.goto("https://www.wizzair.com/en-gb", { waitUntil: "domcontentloaded", timeout: 60000 });
+    console.log(`  Homepage loaded`);
     await page.waitForTimeout(3000);
 
-    // Cookie consent
+    // Cookie consent (on homepage)
     try {
       const acceptBtn = page.locator('button:has-text("Accept all")').first();
       if (await acceptBtn.isVisible({ timeout: 3000 })) {
@@ -195,6 +188,17 @@ async function scrapeFlight(browser, flight) {
       }
     } catch (e) {
       console.log(`  Cookie handling: ${e.message}`);
+    }
+
+    // Step 2: Navigate to flight search
+    console.log(`  >>> TARGET URL: ${url}`);
+    const navStart = Date.now();
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+    const currentUrl = page.url();
+    console.log(`  Page loaded in ${Date.now() - navStart}ms`);
+    console.log(`  >>> LANDED URL: ${currentUrl}`);
+    if (currentUrl !== url) {
+      console.log(`  >>> REDIRECT DETECTED`);
     }
 
     // Wait for flight content to render (async JS needs time)
