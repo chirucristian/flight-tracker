@@ -181,6 +181,15 @@ async function scrapeFlight(browser, flight) {
     const flightDatesResponses = [];
     const fareChartResponses = [];
 
+    page.on("request", (request) => {
+      const reqUrl = request.url();
+      if (reqUrl.includes("/Api/asset/farechart") || reqUrl.includes("/Api/search/search")) {
+        const postData = request.postData();
+        console.log(`  [REQ ${request.method()}] ${reqUrl.split("?")[0]}`);
+        if (postData) console.log(`    Body: ${postData}`);
+      }
+    });
+
     page.on("response", async (response) => {
       const reqUrl = response.url();
       const status = response.status();
@@ -272,43 +281,25 @@ async function scrapeFlight(browser, flight) {
       fs.writeFileSync(path.join(DATA_DIR, `debug-farechart-${id}.json`), JSON.stringify(fareChartResponses, null, 2));
     }
 
-    // Strategy 1: flightDates API (not blocked by KPSDK)
-    console.log(`  Strategy 1: flightDates API (${flightDatesResponses.length} responses)`);
-    for (const data of flightDatesResponses) {
-      // flightDates returns an array of date strings or objects with prices
-      const targetDate = flight.date;
-      console.log(`    Looking for date ${targetDate} in flightDates...`);
-      console.log(`    Response keys: ${Object.keys(data).join(", ")}`);
-      console.log(`    Response sample: ${JSON.stringify(data).substring(0, 500)}`);
-
-      // Try to find price in the response — structure varies, so check multiple shapes
-      const outbound = data.outboundFlightDates || data.flightDates || data.outbound || data;
-      if (Array.isArray(outbound)) {
-        for (const entry of outbound) {
-          const entryDate = (entry.date || entry.departureDate || entry.departureDateTime || "").substring(0, 10);
-          if (entryDate === targetDate && entry.price != null) {
-            const price = typeof entry.price === "object" ? entry.price.amount : entry.price;
-            const currency = typeof entry.price === "object" ? entry.price.currencyCode : (entry.currencyCode || entry.currency);
-            if (price != null) {
-              console.log(`  >>> FOUND via flightDates: ${price} ${currency}`);
-              return { price, currency, raw: `${price} ${currency}` };
-            }
-          }
+    // Strategy 1: farechart API (not blocked by KPSDK — has per-date prices)
+    console.log(`  Strategy 1: farechart API (${fareChartResponses.length} responses)`);
+    for (const data of fareChartResponses) {
+      const flights = data.outboundFlights || [];
+      for (const entry of flights) {
+        const entryDate = (entry.date || "").substring(0, 10);
+        if (entryDate === flight.date && entry.priceType === "price" && entry.price?.amount > 0) {
+          const price = entry.price.amount;
+          const currency = entry.price.currencyCode;
+          console.log(`  >>> FOUND via farechart: ${price} ${currency} (date ${entryDate})`);
+          return { price, currency, raw: `${price} ${currency}` };
         }
       }
-      console.log(`    No price match in flightDates for ${targetDate}`);
+      console.log(`    No price match in farechart for ${flight.date}`);
     }
 
-    // Strategy 2: farechart API (not blocked by KPSDK)
-    console.log(`  Strategy 2: farechart API (${fareChartResponses.length} responses)`);
-    for (const data of fareChartResponses) {
-      console.log(`    Response keys: ${Object.keys(data).join(", ")}`);
-      console.log(`    Response sample: ${JSON.stringify(data).substring(0, 500)}`);
-    }
-
-    // Strategy 3: DOM scraping (in case search API wasn't blocked this time)
+    // Strategy 2: DOM scraping (in case search API wasn't blocked this time)
     if (!pageText.includes("No flights on this date")) {
-      console.log(`  Strategy 3: DOM scraping`);
+      console.log(`  Strategy 2: DOM scraping`);
       const domResult = await extractFromDom(page, flight.time);
       if (domResult) {
         console.log(`  >>> FOUND via DOM: ${domResult.price} ${domResult.currency}`);
@@ -316,8 +307,8 @@ async function scrapeFlight(browser, flight) {
       }
       console.log(`  DOM: no matching flight found`);
 
-      // Strategy 4: Full page text parsing
-      console.log(`  Strategy 4: Text parsing`);
+      // Strategy 3: Full page text parsing
+      console.log(`  Strategy 3: Text parsing`);
       const textResult = extractFromText(pageText, flight.time);
       if (textResult) {
         console.log(`  >>> FOUND via text: ${textResult.price} ${textResult.currency}`);
