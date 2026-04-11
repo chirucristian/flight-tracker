@@ -47,14 +47,14 @@
         "departureStation": "OTP",
         "arrivalStation": "ORY",
         "price": {
-          "amount": 296,
+          "amount": 316,
           "currencyCode": "RON",
           "exchangedAmount": null,
           "exchangedCurrencyCode": null
         },
         "priceType": "price",
         "date": "2026-05-24T00:00:00",
-        "classOfService": "KLW",
+        "classOfService": "KW",
         "hasMacFlight": false
       },
       {
