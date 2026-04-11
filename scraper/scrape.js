@@ -48,63 +48,6 @@ function findBestMatch(candidates, targetTime) {
   return null;
 }
 
-function extractFromSearch(responses, targetTime) {
-  for (const data of responses) {
-    console.log(`    Search response keys: ${Object.keys(data).join(", ")}`);
-    const flights = data.outboundFlights || data.flights || [];
-    console.log(`    Flights found in response: ${flights.length}`);
-    if (!Array.isArray(flights) || flights.length === 0) continue;
-
-    const candidates = [];
-    for (const f of flights) {
-      const dep = f.departureDateTime || f.departureDateTimeUtc || "";
-      const depTime = dep.substring(11, 16);
-      console.log(`    Flight dep=${depTime}, fares=${f.fares?.length || 0}`);
-      if (!depTime || !/^\d{2}:\d{2}$/.test(depTime)) {
-        console.log(`    Skipping: invalid departure time "${dep}"`);
-        continue;
-      }
-
-      let bestPrice = null;
-      let currency = null;
-
-      if (f.fares && Array.isArray(f.fares)) {
-        for (const fare of f.fares) {
-          const priceObj =
-            fare.discountedPrice || fare.price || fare.basePrice;
-          console.log(`      Fare bundle=${fare.bundle || "?"}, price=${JSON.stringify(priceObj)}`);
-          if (priceObj && priceObj.amount != null) {
-            if (bestPrice === null || priceObj.amount < bestPrice) {
-              bestPrice = priceObj.amount;
-              currency = priceObj.currencyCode;
-            }
-          }
-        }
-      }
-
-      if (bestPrice !== null) {
-        console.log(`    Candidate: dep=${depTime} price=${bestPrice} ${currency}`);
-        candidates.push({
-          departureTime: depTime,
-          price: bestPrice,
-          currency,
-          raw: `${bestPrice} ${currency}`,
-        });
-      }
-    }
-
-    console.log(`    Total candidates: ${candidates.length}, target time: ${targetTime}`);
-    const match = findBestMatch(candidates, targetTime);
-    if (match) {
-      console.log(`    Best match: dep=${match.departureTime} diff=${match.diff}min price=${match.price} ${match.currency}`);
-      return match;
-    } else {
-      console.log(`    No match within ±3h of ${targetTime}`);
-    }
-  }
-  return null;
-}
-
 async function extractFromDom(page, targetTime) {
   const flights = await page.evaluate(() => {
     const selectors = [
@@ -220,110 +163,54 @@ async function scrapeFlight(browser, flight) {
   });
 
   try {
-    // Log ALL API calls for debugging
-    const searchResponses = [];
-    const allApiCalls = [];
-    page.on("response", async (response) => {
-      const reqUrl = response.url();
-      if (!reqUrl.includes("wizzair.com") || !reqUrl.includes("/Api/")) return;
-      const endpoint = reqUrl.split("/Api/")[1]?.split("?")[0] || "unknown";
-      const status = response.status();
-      allApiCalls.push({ endpoint, status });
-      console.log(`  [API ${status}] /Api/${endpoint}`);
-
-      if (reqUrl.includes("/Api/search/search")) {
-        if (status === 200) {
-          try {
-            const json = await response.json();
-            searchResponses.push(json);
-            console.log(`  >>> Search API captured successfully`);
-          } catch (e) {
-            console.log(`  >>> Search API parse error: ${e.message}`);
-          }
-        } else {
-          console.log(`  >>> Search API BLOCKED (status ${status})`);
-        }
-      }
-    });
-
     // Navigation
-    console.log(`  Navigating to Wizzair...`);
+    console.log(`  Navigating...`);
+    console.log(`  >>> TARGET URL: ${url}`);
     const navStart = Date.now();
     await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
+    const currentUrl = page.url();
     console.log(`  Page loaded in ${Date.now() - navStart}ms`);
+    console.log(`  >>> LANDED URL: ${currentUrl}`);
+    if (currentUrl !== url) {
+      console.log(`  >>> REDIRECT DETECTED`);
+    }
     await page.waitForTimeout(3000);
 
     // Cookie consent
-    console.log(`  Checking for cookie banner...`);
     try {
       const acceptBtn = page.locator('button:has-text("Accept all")').first();
       if (await acceptBtn.isVisible({ timeout: 3000 })) {
         await acceptBtn.click();
         console.log(`  Cookie consent accepted`);
         await page.waitForTimeout(2000);
-      } else {
-        console.log(`  No cookie banner found`);
       }
     } catch (e) {
-      console.log(`  Cookie handling error: ${e.message}`);
+      console.log(`  Cookie handling: ${e.message}`);
     }
 
-    // Wait for content
+    // Wait for flight content to render
     console.log(`  Waiting for flight content...`);
     await page.waitForTimeout(5000);
 
-    // Debug: screenshot
+    // Screenshot for debugging
     const ssPath = path.join(DATA_DIR, `debug-${id}.png`);
     await page.screenshot({ path: ssPath, fullPage: true });
     console.log(`  Screenshot saved: debug-${id}.png`);
 
-    // Debug: page text
+    // Page text for debugging + text extraction
     const pageText = await page.evaluate(() => document.body.innerText);
     const textPath = path.join(DATA_DIR, `debug-text-${id}.txt`);
     fs.writeFileSync(textPath, pageText);
     console.log(`  Page text saved: debug-text-${id}.txt (${pageText.length} chars)`);
 
-    // Debug: page URL after navigation (check for redirects)
-    const currentUrl = page.url();
-    console.log(`  Current URL: ${currentUrl}`);
-
-    // Debug: check for error messages on page
-    const errorText = await page.evaluate(() => {
-      const el = document.querySelector('[class*="error"], [class*="Error"], [data-test*="error"]');
-      return el ? el.textContent.trim().substring(0, 200) : null;
-    });
-    if (errorText) {
-      console.log(`  Page error detected: "${errorText}"`);
+    // Check for "no flights" message
+    if (pageText.includes("No flights on this date")) {
+      console.log(`  >>> Page says "No flights on this date" — skipping extraction`);
+      return { price: null, currency: null, raw: "no flights on this date" };
     }
 
-    // Summary of API calls
-    console.log(`\n  --- API Summary ---`);
-    console.log(`  Total API calls: ${allApiCalls.length}`);
-    for (const { endpoint, status } of allApiCalls) {
-      console.log(`    ${status === 200 ? "✓" : "✗"} [${status}] ${endpoint}`);
-    }
-    console.log(`  Search responses captured: ${searchResponses.length}`);
-    console.log(`  -------------------\n`);
-
-    // Strategy 1: Search API (exact flight-level pricing)
-    console.log(`  Strategy 1: Search API`);
-    if (searchResponses.length > 0) {
-      const apiPath = path.join(DATA_DIR, `debug-api-search-${id}.json`);
-      fs.writeFileSync(apiPath, JSON.stringify(searchResponses, null, 2));
-      console.log(`  Search API response saved: debug-api-search-${id}.json`);
-
-      const result = extractFromSearch(searchResponses, flight.time);
-      if (result) {
-        console.log(`  >>> FOUND via search API: ${result.price} ${result.currency} (dep ${result.departureTime})`);
-        return { price: result.price, currency: result.currency, raw: result.raw };
-      }
-      console.log(`  Search API: no matching flight found`);
-    } else {
-      console.log(`  Search API: no responses captured`);
-    }
-
-    // Strategy 2: DOM scraping
-    console.log(`  Strategy 2: DOM scraping`);
+    // Strategy 1: DOM scraping
+    console.log(`  Strategy 1: DOM scraping`);
     const domResult = await extractFromDom(page, flight.time);
     if (domResult) {
       console.log(`  >>> FOUND via DOM: ${domResult.price} ${domResult.currency}`);
@@ -331,8 +218,8 @@ async function scrapeFlight(browser, flight) {
     }
     console.log(`  DOM: no matching flight found`);
 
-    // Strategy 3: Full page text parsing
-    console.log(`  Strategy 3: Text parsing`);
+    // Strategy 2: Full page text parsing
+    console.log(`  Strategy 2: Text parsing`);
     const textResult = extractFromText(pageText, flight.time);
     if (textResult) {
       console.log(`  >>> FOUND via text: ${textResult.price} ${textResult.currency}`);
