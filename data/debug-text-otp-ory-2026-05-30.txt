@@ -56,6 +56,6 @@ No flights on this date.
 
 Show next available flight
 All prices are per passenger and include all applicable taxes. WIZZ does not charge Air Passenger Duty (“APD”) taxes for any passenger departing from the United Kingdom. Schedule times shown are the local times of the departure and arrival city.
-Paris Orly (ORY)  Bucharest Otopeni (OTP)
+Paris Orly (ORY)  Bucharest Otopeni (OTP)
 Add return flight
 Show return flights

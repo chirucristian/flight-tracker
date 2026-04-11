@@ -5,6 +5,12 @@
       "price": null,
       "currency": null,
       "raw": "no flights on this date"
+    },
+    {
+      "timestamp": "2026-04-11T15:43:18.815Z",
+      "price": null,
+      "currency": null,
+      "raw": "no flights on this date"
     }
   ]
 }
