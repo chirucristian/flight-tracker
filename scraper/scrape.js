@@ -26,13 +26,28 @@ function calculateRealPrice(chartPrice) {
 
 async function getApiUrl() {
   console.log("  Discovering Wizzair API version...");
-  const res = await fetch("https://wizzair.com/static_fe/metadata.json");
-  if (!res.ok) throw new Error(`metadata.json returned ${res.status}`);
-  const meta = await res.json();
-  const apiUrl = meta.apiUrl;
-  if (!apiUrl) throw new Error("No apiUrl in metadata.json");
-  console.log(`  API base URL: ${apiUrl}`);
-  return apiUrl;
+  const metadataUrls = [
+    "https://wizzair.com/static_fe/metadata.json",
+    "https://www.wizzair.com/static_fe/metadata.json",
+  ];
+  for (const url of metadataUrls) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const meta = await res.json();
+        if (meta.apiUrl) {
+          console.log(`  API base URL: ${meta.apiUrl} (from ${url})`);
+          return meta.apiUrl;
+        }
+      }
+      console.log(`  ${url} returned ${res.status}`);
+    } catch (e) {
+      console.log(`  ${url} failed: ${e.message}`);
+    }
+  }
+  const fallback = "https://be.wizzair.com/28.6.0";
+  console.log(`  Using fallback API URL: ${fallback}`);
+  return fallback;
 }
 
 async function fetchFareChart(apiUrl, flight) {
