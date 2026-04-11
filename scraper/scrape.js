@@ -163,6 +163,15 @@ async function scrapeFlight(browser, flight) {
   });
 
   try {
+    // Anti-detection: hide webdriver flag before any page JS runs
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => false });
+      // Remove Playwright/Chrome automation indicators
+      delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
+      delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
+      delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
+    });
+
     // Navigation
     console.log(`  Navigating...`);
     console.log(`  >>> TARGET URL: ${url}`);
@@ -188,9 +197,9 @@ async function scrapeFlight(browser, flight) {
       console.log(`  Cookie handling: ${e.message}`);
     }
 
-    // Wait for flight content to render
+    // Wait for flight content to render (async JS needs time)
     console.log(`  Waiting for flight content...`);
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(10000);
 
     // Screenshot for debugging
     const ssPath = path.join(DATA_DIR, `debug-${id}.png`);
@@ -383,7 +392,7 @@ async function main() {
   }
   console.log(`Existing price data: ${Object.keys(data).length} flight(s) tracked`);
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: "new" });
   console.log("Browser launched (headless)");
 
   const results = [];
