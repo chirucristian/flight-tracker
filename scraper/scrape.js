@@ -39,6 +39,20 @@ function parsePrice(raw) {
   return isNaN(num) ? null : num;
 }
 
+function humanDelay(min = 800, max = 2500) {
+  const ms = Math.floor(Math.random() * (max - min) + min);
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function humanScroll(page) {
+  const scrollY = Math.floor(Math.random() * 300 + 100);
+  await page.mouse.move(
+    Math.floor(Math.random() * 800 + 200),
+    Math.floor(Math.random() * 400 + 100)
+  );
+  await page.evaluate((y) => window.scrollBy(0, y), scrollY);
+}
+
 function findBestMatch(candidates, targetTime) {
   if (candidates.length === 0) return null;
   const sorted = candidates
@@ -163,23 +177,54 @@ async function scrapeFlight(browser, flight) {
   });
 
   try {
-    // Step 1: Visit homepage first to establish session cookies
+    // Log all network responses — watch for 429s, Kaspersky, bot detection
+    page.on("response", (response) => {
+      const reqUrl = response.url();
+      const status = response.status();
+      const isApi = reqUrl.includes("/Api/") || reqUrl.includes("/api/");
+      const isKaspersky = /kaspersky|kas-|uareSmart|captcha|challenge|bot.*detect|imperva|perimeterx|akamai|datadome/i.test(reqUrl);
+      const is429 = status === 429;
+      const isError = status >= 400;
+
+      if (isKaspersky) {
+        console.log(`  [BOT-DETECT ${status}] ${reqUrl}`);
+      } else if (is429) {
+        console.log(`  [429 RATE-LIMITED] ${reqUrl}`);
+      } else if (isApi && isError) {
+        console.log(`  [API ${status}] ${reqUrl}`);
+      } else if (isApi) {
+        console.log(`  [API ${status}] ${reqUrl.split("?")[0]}`);
+      }
+    });
+
+    // Step 1: Visit homepage — establish session cookies
     console.log(`  Visiting homepage first...`);
     await page.goto("https://www.wizzair.com/en-gb", { waitUntil: "domcontentloaded", timeout: 60000 });
     console.log(`  Homepage loaded`);
-    await page.waitForTimeout(3000);
+    await humanDelay(2000, 4000);
 
-    // Cookie consent (on homepage)
+    // Human-like: move mouse around on homepage
+    await page.mouse.move(640, 350);
+    await humanDelay(500, 1200);
+    await humanScroll(page);
+    await humanDelay(1000, 2000);
+
+    // Cookie consent
     try {
       const acceptBtn = page.locator('button:has-text("Accept all")').first();
       if (await acceptBtn.isVisible({ timeout: 3000 })) {
+        await humanDelay(500, 1500);
         await acceptBtn.click();
         console.log(`  Cookie consent accepted`);
-        await page.waitForTimeout(2000);
+        await humanDelay(1500, 3000);
       }
     } catch (e) {
       console.log(`  Cookie handling: ${e.message}`);
     }
+
+    // Human-like: more mouse movement before navigating
+    await page.mouse.move(400, 200);
+    await humanDelay(800, 1500);
 
     // Step 2: Navigate to flight search
     console.log(`  >>> TARGET URL: ${url}`);
@@ -192,9 +237,14 @@ async function scrapeFlight(browser, flight) {
       console.log(`  >>> REDIRECT DETECTED`);
     }
 
-    // Wait for flight content to render (async JS needs time)
-    console.log(`  Waiting for flight content...`);
-    await page.waitForTimeout(10000);
+    // Human-like: wait, scroll, move mouse while content loads
+    await humanDelay(2000, 4000);
+    await page.mouse.move(640, 450);
+    await humanDelay(1000, 2000);
+    await humanScroll(page);
+    await humanDelay(1500, 3000);
+    await page.mouse.move(500, 300);
+    await humanDelay(2000, 4000);
 
     // Screenshot for debugging
     const ssPath = path.join(DATA_DIR, `debug-${id}.png`);
