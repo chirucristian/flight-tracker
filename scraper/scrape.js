@@ -39,6 +39,13 @@ function parsePrice(raw) {
   return isNaN(num) ? null : num;
 }
 
+function calculateRealPrice(chartPrice) {
+  const withMarkup = chartPrice + 50;
+  // Round up so the last digit is 9
+  // e.g. 156 → 159, 160 → 169, 159 → 159
+  return Math.ceil((withMarkup - 9) / 10) * 10 + 9;
+}
+
 function humanDelay(min = 800, max = 2500) {
   const ms = Math.floor(Math.random() * (max - min) + min);
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -181,9 +188,29 @@ async function scrapeFlight(browser, flight) {
     const flightDatesResponses = [];
     const fareChartResponses = [];
 
+    // Intercept farechart requests to set the period to 60 days
+    await page.route("**/Api/asset/farechart**", async (route, request) => {
+      const postData = request.postData();
+      console.log(`  [REQ ${request.method()}] ${request.url().split("?")[0]}`);
+      if (postData) {
+        console.log(`    Original body: ${postData}`);
+        try {
+          const body = JSON.parse(postData);
+          body.dayInterval = 60;
+          const modified = JSON.stringify(body);
+          console.log(`    Modified body: ${modified}`);
+          await route.continue({ postData: modified });
+          return;
+        } catch (e) {
+          console.log(`    Failed to modify farechart body: ${e.message}`);
+        }
+      }
+      await route.continue();
+    });
+
     page.on("request", (request) => {
       const reqUrl = request.url();
-      if (reqUrl.includes("/Api/asset/farechart") || reqUrl.includes("/Api/search/search")) {
+      if (reqUrl.includes("/Api/search/search")) {
         const postData = request.postData();
         console.log(`  [REQ ${request.method()}] ${reqUrl.split("?")[0]}`);
         if (postData) console.log(`    Body: ${postData}`);
@@ -288,9 +315,10 @@ async function scrapeFlight(browser, flight) {
       for (const entry of flights) {
         const entryDate = (entry.date || "").substring(0, 10);
         if (entryDate === flight.date && entry.priceType === "price" && entry.price?.amount > 0) {
-          const price = entry.price.amount;
+          const chartPrice = entry.price.amount;
+          const price = calculateRealPrice(chartPrice);
           const currency = entry.price.currencyCode;
-          console.log(`  >>> FOUND via farechart: ${price} ${currency} (date ${entryDate})`);
+          console.log(`  >>> FOUND via farechart: chart=${chartPrice}, real=${price} ${currency} (date ${entryDate})`);
           return { price, currency, raw: `${price} ${currency}` };
         }
       }
