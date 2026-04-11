@@ -41,6 +41,12 @@
       "price": 556,
       "currency": "RON",
       "raw": "556 RON"
+    },
+    {
+      "timestamp": "2026-04-11T17:24:00.642Z",
+      "price": 556,
+      "currency": "RON",
+      "raw": "556 RON"
     }
   ]
 }
