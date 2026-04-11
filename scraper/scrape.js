@@ -177,23 +177,38 @@ async function scrapeFlight(browser, flight) {
   });
 
   try {
-    // Log all network responses — watch for 429s, Kaspersky, bot detection
-    page.on("response", (response) => {
+    // Capture unblocked API responses (flightDates + farechart return 200, search gets 429'd by KPSDK)
+    const flightDatesResponses = [];
+    const fareChartResponses = [];
+
+    page.on("response", async (response) => {
       const reqUrl = response.url();
       const status = response.status();
-      const isApi = reqUrl.includes("/Api/") || reqUrl.includes("/api/");
-      const isKaspersky = /kaspersky|kas-|uareSmart|captcha|challenge|bot.*detect|imperva|perimeterx|akamai|datadome/i.test(reqUrl);
+      const isKpsdk = /kpsdk|x-kpsdk/i.test(reqUrl);
+      const isBotDetect = /recaptcha|captcha|challenge/i.test(reqUrl);
       const is429 = status === 429;
-      const isError = status >= 400;
 
-      if (isKaspersky) {
-        console.log(`  [BOT-DETECT ${status}] ${reqUrl}`);
-      } else if (is429) {
-        console.log(`  [429 RATE-LIMITED] ${reqUrl}`);
-      } else if (isApi && isError) {
-        console.log(`  [API ${status}] ${reqUrl}`);
-      } else if (isApi) {
-        console.log(`  [API ${status}] ${reqUrl.split("?")[0]}`);
+      if (isKpsdk || is429) {
+        console.log(`  [${is429 ? "429" : "KPSDK"} ${status}] ${reqUrl}`);
+      } else if (isBotDetect) {
+        console.log(`  [BOT-DETECT ${status}] ${reqUrl.split("?")[0]}`);
+      }
+
+      // Capture the non-blocked endpoints that carry price data
+      if (status === 200) {
+        try {
+          if (reqUrl.includes("/Api/search/flightDates")) {
+            const json = await response.json();
+            flightDatesResponses.push(json);
+            console.log(`  [CAPTURED] flightDates response`);
+          } else if (reqUrl.includes("/Api/asset/farechart")) {
+            const json = await response.json();
+            fareChartResponses.push(json);
+            console.log(`  [CAPTURED] farechart response`);
+          }
+        } catch (e) {
+          // ignore parse errors
+        }
       }
     });
 
@@ -202,8 +217,6 @@ async function scrapeFlight(browser, flight) {
     await page.goto("https://www.wizzair.com/en-gb", { waitUntil: "domcontentloaded", timeout: 60000 });
     console.log(`  Homepage loaded`);
     await humanDelay(2000, 4000);
-
-    // Human-like: move mouse around on homepage
     await page.mouse.move(640, 350);
     await humanDelay(500, 1200);
     await humanScroll(page);
@@ -222,7 +235,6 @@ async function scrapeFlight(browser, flight) {
       console.log(`  Cookie handling: ${e.message}`);
     }
 
-    // Human-like: more mouse movement before navigating
     await page.mouse.move(400, 200);
     await humanDelay(800, 1500);
 
@@ -233,11 +245,8 @@ async function scrapeFlight(browser, flight) {
     const currentUrl = page.url();
     console.log(`  Page loaded in ${Date.now() - navStart}ms`);
     console.log(`  >>> LANDED URL: ${currentUrl}`);
-    if (currentUrl !== url) {
-      console.log(`  >>> REDIRECT DETECTED`);
-    }
 
-    // Human-like: wait, scroll, move mouse while content loads
+    // Human-like: interact while content loads
     await humanDelay(2000, 4000);
     await page.mouse.move(640, 450);
     await humanDelay(1000, 2000);
@@ -246,40 +255,78 @@ async function scrapeFlight(browser, flight) {
     await page.mouse.move(500, 300);
     await humanDelay(2000, 4000);
 
-    // Screenshot for debugging
+    // Screenshot + text for debugging
     const ssPath = path.join(DATA_DIR, `debug-${id}.png`);
     await page.screenshot({ path: ssPath, fullPage: true });
     console.log(`  Screenshot saved: debug-${id}.png`);
-
-    // Page text for debugging + text extraction
     const pageText = await page.evaluate(() => document.body.innerText);
     const textPath = path.join(DATA_DIR, `debug-text-${id}.txt`);
     fs.writeFileSync(textPath, pageText);
     console.log(`  Page text saved: debug-text-${id}.txt (${pageText.length} chars)`);
 
-    // Check for "no flights" message
-    if (pageText.includes("No flights on this date")) {
-      console.log(`  >>> Page says "No flights on this date" — skipping extraction`);
-      return { price: null, currency: null, raw: "no flights on this date" };
+    // Save captured API data for debugging
+    if (flightDatesResponses.length > 0) {
+      fs.writeFileSync(path.join(DATA_DIR, `debug-flightDates-${id}.json`), JSON.stringify(flightDatesResponses, null, 2));
+    }
+    if (fareChartResponses.length > 0) {
+      fs.writeFileSync(path.join(DATA_DIR, `debug-farechart-${id}.json`), JSON.stringify(fareChartResponses, null, 2));
     }
 
-    // Strategy 1: DOM scraping
-    console.log(`  Strategy 1: DOM scraping`);
-    const domResult = await extractFromDom(page, flight.time);
-    if (domResult) {
-      console.log(`  >>> FOUND via DOM: ${domResult.price} ${domResult.currency}`);
-      return { price: domResult.price, currency: domResult.currency, raw: domResult.raw };
-    }
-    console.log(`  DOM: no matching flight found`);
+    // Strategy 1: flightDates API (not blocked by KPSDK)
+    console.log(`  Strategy 1: flightDates API (${flightDatesResponses.length} responses)`);
+    for (const data of flightDatesResponses) {
+      // flightDates returns an array of date strings or objects with prices
+      const targetDate = flight.date;
+      console.log(`    Looking for date ${targetDate} in flightDates...`);
+      console.log(`    Response keys: ${Object.keys(data).join(", ")}`);
+      console.log(`    Response sample: ${JSON.stringify(data).substring(0, 500)}`);
 
-    // Strategy 2: Full page text parsing
-    console.log(`  Strategy 2: Text parsing`);
-    const textResult = extractFromText(pageText, flight.time);
-    if (textResult) {
-      console.log(`  >>> FOUND via text: ${textResult.price} ${textResult.currency}`);
-      return { price: textResult.price, currency: textResult.currency, raw: textResult.raw };
+      // Try to find price in the response — structure varies, so check multiple shapes
+      const outbound = data.outboundFlightDates || data.flightDates || data.outbound || data;
+      if (Array.isArray(outbound)) {
+        for (const entry of outbound) {
+          const entryDate = (entry.date || entry.departureDate || entry.departureDateTime || "").substring(0, 10);
+          if (entryDate === targetDate && entry.price != null) {
+            const price = typeof entry.price === "object" ? entry.price.amount : entry.price;
+            const currency = typeof entry.price === "object" ? entry.price.currencyCode : (entry.currencyCode || entry.currency);
+            if (price != null) {
+              console.log(`  >>> FOUND via flightDates: ${price} ${currency}`);
+              return { price, currency, raw: `${price} ${currency}` };
+            }
+          }
+        }
+      }
+      console.log(`    No price match in flightDates for ${targetDate}`);
     }
-    console.log(`  Text: no matching flight found`);
+
+    // Strategy 2: farechart API (not blocked by KPSDK)
+    console.log(`  Strategy 2: farechart API (${fareChartResponses.length} responses)`);
+    for (const data of fareChartResponses) {
+      console.log(`    Response keys: ${Object.keys(data).join(", ")}`);
+      console.log(`    Response sample: ${JSON.stringify(data).substring(0, 500)}`);
+    }
+
+    // Strategy 3: DOM scraping (in case search API wasn't blocked this time)
+    if (!pageText.includes("No flights on this date")) {
+      console.log(`  Strategy 3: DOM scraping`);
+      const domResult = await extractFromDom(page, flight.time);
+      if (domResult) {
+        console.log(`  >>> FOUND via DOM: ${domResult.price} ${domResult.currency}`);
+        return { price: domResult.price, currency: domResult.currency, raw: domResult.raw };
+      }
+      console.log(`  DOM: no matching flight found`);
+
+      // Strategy 4: Full page text parsing
+      console.log(`  Strategy 4: Text parsing`);
+      const textResult = extractFromText(pageText, flight.time);
+      if (textResult) {
+        console.log(`  >>> FOUND via text: ${textResult.price} ${textResult.currency}`);
+        return { price: textResult.price, currency: textResult.currency, raw: textResult.raw };
+      }
+      console.log(`  Text: no matching flight found`);
+    } else {
+      console.log(`  Page says "No flights on this date" (search API likely 429'd)`);
+    }
 
     console.log(`  ALL STRATEGIES FAILED — no price found`);
     return { price: null, currency: null, raw: null };
