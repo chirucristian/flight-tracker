@@ -252,8 +252,8 @@ async function main() {
   const activeIds = new Set(flights.map(flightId));
   for (const key of Object.keys(data)) {
     if (!activeIds.has(key)) {
-      delete data[key];
       console.log(`  Cleaning up orphaned key: ${key} (${data[key].length} price entries)`);
+      delete data[key];
     }
   }
 
