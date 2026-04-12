@@ -133,62 +133,6 @@ async function fetchFareChart(apiUrl, flight) {
   return { price: null, currency: null, raw: null };
 }
 
-async function fetchSearch(apiUrl, flight) {
-  const id = flightId(flight);
-
-  console.log(`\n  [DEBUG] Trying search API for ${id}...`);
-
-  const url = `${apiUrl}/Api/search/search`;
-  const body = {
-    isFlightChange: false,
-    flightList: [
-      {
-        departureStation: flight.from,
-        arrivalStation: flight.to,
-        departureDate: `${flight.date}T00:00:00`,
-      },
-    ],
-    adultCount: 1,
-    childCount: 0,
-    infantCount: 0,
-    wdc: true,
-  };
-
-  console.log(`  [DEBUG] POST ${url}`);
-  console.log(`  [DEBUG] Body: ${JSON.stringify(body)}`);
-
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        Accept: "application/json, text/plain, */*",
-        "Accept-Language": "en-GB,en;q=0.9",
-        Origin: "https://www.wizzair.com",
-        Referer: "https://www.wizzair.com/",
-      },
-      body: JSON.stringify(body),
-    });
-
-    console.log(`  [DEBUG] Search response: ${res.status} ${res.statusText}`);
-
-    const resText = await res.text();
-    fs.writeFileSync(
-      path.join(DEBUG_DIR, `search-${id}-${res.status}.json`),
-      resText
-    );
-    console.log(`  [DEBUG] Saved to debug/search-${id}-${res.status}.json`);
-
-    if (!res.ok) {
-      console.log(`  [DEBUG] Search error: ${resText.substring(0, 500)}`);
-    }
-  } catch (e) {
-    console.log(`  [DEBUG] Search failed: ${e.message}`);
-  }
-}
-
 async function createScrapeFailureIssue(flight) {
   const token = process.env.GITHUB_TOKEN;
   const repo = process.env.GITHUB_REPOSITORY;
@@ -199,6 +143,7 @@ async function createScrapeFailureIssue(flight) {
 
   const id = flightId(flight);
   const label = flightLabel(flight);
+  const url = buildUrl(flight.from, flight.to, flight.date);
   const title = `Scrape failed: ${label}`;
   const body = [
     `## Scrape Failure`,
@@ -209,6 +154,8 @@ async function createScrapeFailureIssue(flight) {
     `|--------|-------|`,
     `| Flight ID | \`${id}\` |`,
     `| Timestamp | ${new Date().toISOString()} |`,
+    ``,
+    `**[Check on Wizzair](${url})**`,
   ].join("\n");
 
   try {
@@ -325,7 +272,6 @@ async function main() {
   const results = [];
   for (const flight of flights) {
     const result = await fetchFareChart(apiUrl, flight);
-    await fetchSearch(apiUrl, flight);
     if (result.price === null) {
       console.error(`  FAILED: No price found for ${flightId(flight)}`);
       await createScrapeFailureIssue(flight);
