@@ -207,7 +207,7 @@ async function createGitHubIssue(flight, newPrice, currency, previousLow, chartU
     drop ? `| Drop | ${drop}% |` : null,
     `| Timestamp | ${new Date().toISOString()} |`,
     ``,
-    `**[Book this flight](${url})**`,
+    `**[Check on Wizzair](${url})**`,
     ``,
     `[View Price Chart](${chartUrl})`,
   ]
