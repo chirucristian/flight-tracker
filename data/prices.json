@@ -35,6 +35,12 @@
       "price": 609,
       "currency": "RON",
       "raw": "609 RON"
+    },
+    {
+      "timestamp": "2026-04-12T00:39:31.441Z",
+      "price": 609,
+      "currency": "RON",
+      "raw": "609 RON"
     }
   ],
   "otp-fco-2026-04-17": [
@@ -52,6 +58,12 @@
     },
     {
       "timestamp": "2026-04-12T00:39:09.632Z",
+      "price": 189,
+      "currency": "RON",
+      "raw": "189 RON"
+    },
+    {
+      "timestamp": "2026-04-12T00:39:31.441Z",
       "price": 189,
       "currency": "RON",
       "raw": "189 RON"
