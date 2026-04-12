@@ -47,7 +47,7 @@ async function fetchFareChart(apiUrl, flight) {
     isRescueFare: false,
     adultCount: 1,
     childCount: 0,
-    dayInterval: 7,
+    dayInterval: 15,
     wdc: false,
     isFlightChange: false,
     flightList: [
