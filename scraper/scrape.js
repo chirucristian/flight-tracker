@@ -4,6 +4,7 @@ const path = require("path");
 const FLIGHTS_PATH = path.join(__dirname, "flights.json");
 const DATA_PATH = path.join(__dirname, "..", "data", "prices.json");
 const DATA_DIR = path.join(__dirname, "..", "data");
+const DEBUG_DIR = path.join(__dirname, "..", "debug");
 
 function buildUrl(from, to, date) {
   return `https://www.wizzair.com/en-gb/booking/select-flight/${from}/${to}/${date}/null/1/0/0/null`;
@@ -19,8 +20,6 @@ function flightLabel(f) {
 
 function calculateRealPrice(chartPrice) {
   const withMarkup = chartPrice + 50;
-  // Round up so the last digit is 9
-  // e.g. 156 → 159, 160 → 169, 159 → 159
   return Math.ceil((withMarkup - 9) / 10) * 10 + 9;
 }
 
@@ -64,7 +63,7 @@ async function fetchFareChart(apiUrl, flight) {
     isRescueFare: false,
     adultCount: 1,
     childCount: 0,
-    dayInterval: 10,
+    dayInterval: 0,
     wdc: false,
     isFlightChange: false,
     flightList: [
@@ -95,21 +94,21 @@ async function fetchFareChart(apiUrl, flight) {
 
   console.log(`  Response: ${res.status} ${res.statusText}`);
 
+  const resText = await res.text();
+
+  // Save full response to debug/
+  fs.writeFileSync(
+    path.join(DEBUG_DIR, `farechart-${id}-${res.status}.json`),
+    resText
+  );
+  console.log(`  Saved response to debug/farechart-${id}-${res.status}.json`);
+
   if (!res.ok) {
-    const text = await res.text();
-    console.error(`  Error body: ${text.substring(0, 500)}`);
+    console.error(`  Error body: ${resText.substring(0, 500)}`);
     return { price: null, currency: null, raw: null };
   }
 
-  const data = await res.json();
-
-  // Save debug response
-  fs.writeFileSync(
-    path.join(DATA_DIR, `debug-farechart-${id}.json`),
-    JSON.stringify(data, null, 2)
-  );
-  console.log(`  Saved debug response to debug-farechart-${id}.json`);
-
+  const data = JSON.parse(resText);
   const flights = data.outboundFlights || [];
   console.log(`  Got ${flights.length} outbound flight entries`);
 
@@ -246,9 +245,15 @@ async function main() {
     console.log(`  - ${flightLabel(f)} [${flightId(f)}]`);
   }
 
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  for (const dir of [DATA_DIR, DEBUG_DIR]) {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   }
+
+  // Clear old debug files
+  for (const f of fs.readdirSync(DEBUG_DIR)) {
+    fs.unlinkSync(path.join(DEBUG_DIR, f));
+  }
+  console.log(`Cleared debug/ directory`);
 
   let data = {};
   try {
