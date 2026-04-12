@@ -273,8 +273,7 @@ async function main() {
   for (const flight of flights) {
     const result = await fetchFareChart(apiUrl, flight);
     if (result.price === null) {
-      console.error(`  FAILED: No price found for ${flightId(flight)}`);
-      await createScrapeFailureIssue(flight);
+      console.log(`  No price for ${flightId(flight)} — skipping`);
     }
     results.push({ flight, result });
   }
