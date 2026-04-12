@@ -1,10 +1,13 @@
 const fs = require("fs");
 const path = require("path");
+const { analyze } = require("./analyze");
 
 const FLIGHTS_PATH = path.join(__dirname, "flights.json");
 const DATA_PATH = path.join(__dirname, "..", "data", "prices.json");
 const DATA_DIR = path.join(__dirname, "..", "data");
 const DEBUG_DIR = path.join(__dirname, "..", "debug");
+const HEURISTIC_LOG_PATH = path.join(DEBUG_DIR, "heuristic-log.jsonl");
+const HEURISTIC_STATE_PATH = path.join(DATA_DIR, "heuristic-state.json");
 
 function buildUrl(from, to, date) {
   return `https://www.wizzair.com/en-gb/booking/select-flight/${from}/${to}/${date}/null/1/0/0/null`;
@@ -86,13 +89,14 @@ async function fetchFareChart(apiUrl, flight) {
 
   if (!res.ok) {
     console.error(`  Error body: ${resText.substring(0, 500)}`);
-    return { price: null, currency: null, raw: null };
+    return { price: null, currency: null, raw: null, windowEntries: [] };
   }
 
   const data = JSON.parse(resText);
   const flights = data.outboundFlights || [];
   console.log(`  Got ${flights.length} outbound flight entries`);
 
+  let match = { price: null, currency: null, raw: null };
   for (const entry of flights) {
     const entryDate = (entry.date || "").substring(0, 10);
     if (
@@ -106,12 +110,16 @@ async function fetchFareChart(apiUrl, flight) {
       console.log(
         `  >>> FOUND: chart=${chartPrice}, real=${price} ${currency} (date ${entryDate})`
       );
-      return { price, currency, raw: `${price} ${currency}` };
+      match = { price, currency, raw: `${price} ${currency}` };
+      break;
     }
   }
 
-  console.log(`  No price match for ${flight.date}`);
-  return { price: null, currency: null, raw: null };
+  if (match.price === null) {
+    console.log(`  No price match for ${flight.date}`);
+  }
+
+  return { ...match, windowEntries: flights };
 }
 
 async function createScrapeFailureIssue(flight) {
@@ -217,6 +225,157 @@ async function createGitHubIssue(flight, newPrice, currency, previousLow, chartU
   }
 }
 
+async function createBuyRecommendationIssue(flight, price, currency, analysis, chartUrl) {
+  const token = process.env.GITHUB_TOKEN;
+  const repo = process.env.GITHUB_REPOSITORY;
+  if (!token || !repo) {
+    console.log("  Skipping buy-recommendation issue (no token/repo)");
+    return;
+  }
+
+  const label = flightLabel(flight);
+  const url = buildUrl(flight.from, flight.to, flight.date);
+
+  const signalRows = Object.entries(analysis.signals)
+    .map(([key, s]) =>
+      `| ${key} | ${s.active ? `${s.value} / ${s.max}` : "—"} |`
+    )
+    .join("\n");
+
+  const reasonsBlock =
+    analysis.reasons.length > 0
+      ? analysis.reasons.map((r) => `- ${r}`).join("\n")
+      : "_(no notable signals)_";
+
+  const title = `Buy recommendation: ${price} ${currency} — ${label}`;
+  const bodyLines = [
+    `## Heuristic says: **${analysis.tier}**`,
+    ``,
+    `| Metric | Value |`,
+    `|--------|-------|`,
+    `| **Price** | **${price} ${currency}** |`,
+    `| Quality | ${analysis.quality} / 100 |`,
+    `| Urgency | ${analysis.urgency} (${analysis.urgencyScore}) |`,
+    `| Confidence | ${analysis.confidence} |`,
+    `| Days to departure | ${analysis.daysToDeparture} |`,
+    analysis.sevenDayChangePct !== null
+      ? `| 7-day change | ${analysis.sevenDayChangePct}% |`
+      : null,
+    `| Timestamp | ${new Date().toISOString()} |`,
+    ``,
+    `### Why`,
+    reasonsBlock,
+    ``,
+    `### Signal breakdown`,
+    `| Signal | Score |`,
+    `|--------|-------|`,
+    signalRows,
+  ];
+
+  if (analysis.siblingSuggestion) {
+    bodyLines.push(
+      ``,
+      `### Cheaper nearby date`,
+      `${analysis.siblingSuggestion.date} is **${analysis.siblingSuggestion.price} ${currency}** — ${analysis.siblingSuggestion.savingsPct}% cheaper than ${flight.date}.`
+    );
+  }
+
+  if (analysis.bucketCeilingWarning) {
+    bodyLines.push(
+      ``,
+      `### Bucket ceiling warning`,
+      `Current price is near the top of its detected fare bucket. If this bucket sells out, expect a jump to the next level.`
+    );
+  }
+
+  if (analysis.buckets && analysis.buckets.length > 0) {
+    bodyLines.push(
+      ``,
+      `### Detected fare buckets (from current window)`,
+      analysis.buckets
+        .map(
+          (b, i) =>
+            `${i + 1}. ${b.min}${b.min !== b.max ? `–${b.max}` : ""} ${currency} (${b.count} obs)${i === analysis.currentBucketIndex ? " ← current" : ""}`
+        )
+        .join("\n")
+    );
+  }
+
+  bodyLines.push(
+    ``,
+    `**[Check on Wizzair](${url})** · [Price chart](${chartUrl})`
+  );
+
+  const body = bodyLines.filter(Boolean).join("\n");
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/issues`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/vnd.github+json",
+      },
+      body: JSON.stringify({
+        title,
+        body,
+        labels: ["buy-recommendation"],
+      }),
+    });
+    if (res.ok) {
+      const issue = await res.json();
+      console.log(`  Buy recommendation issue created: #${issue.number}`);
+    } else {
+      const text = await res.text();
+      console.error(
+        `  Failed to create buy recommendation issue: ${res.status} ${text}`
+      );
+    }
+  } catch (err) {
+    console.error(`  Error creating buy recommendation issue: ${err.message}`);
+  }
+}
+
+function appendHeuristicLog(flight, price, currency, analysis) {
+  const entry = {
+    timestamp: new Date().toISOString(),
+    flightId: flightId(flight),
+    flightDate: flight.date,
+    price,
+    currency,
+    tier: analysis.tier,
+    quality: analysis.quality,
+    urgency: analysis.urgency,
+    urgencyScore: analysis.urgencyScore,
+    confidence: analysis.confidence,
+    daysToDeparture: analysis.daysToDeparture,
+    sevenDayChangePct: analysis.sevenDayChangePct,
+    dtdFloor: analysis.dtdFloor,
+    absoluteMin: analysis.absoluteMin,
+    currentBucketIndex: analysis.currentBucketIndex,
+    numBuckets: analysis.buckets ? analysis.buckets.length : 0,
+    signals: analysis.signals,
+    siblingSuggestion: analysis.siblingSuggestion,
+    bucketCeilingWarning: analysis.bucketCeilingWarning,
+    reasons: analysis.reasons,
+  };
+  fs.appendFileSync(HEURISTIC_LOG_PATH, JSON.stringify(entry) + "\n");
+}
+
+function loadHeuristicState() {
+  try {
+    const raw = fs.readFileSync(HEURISTIC_STATE_PATH, "utf-8");
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveHeuristicState(state) {
+  fs.writeFileSync(HEURISTIC_STATE_PATH, JSON.stringify(state, null, 2));
+}
+
 async function main() {
   console.log(`\n${"=".repeat(50)}`);
   console.log(`Flight Tracker - Wizzair Farechart API`);
@@ -233,11 +392,14 @@ async function main() {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   }
 
-  // Clear old debug files
+  // Clear old debug files — but preserve the heuristic log, which is
+  // append-only across runs.
   for (const f of fs.readdirSync(DEBUG_DIR)) {
-    fs.unlinkSync(path.join(DEBUG_DIR, f));
+    if (f.startsWith("farechart-")) {
+      fs.unlinkSync(path.join(DEBUG_DIR, f));
+    }
   }
-  console.log(`Cleared debug/ directory`);
+  console.log(`Cleared farechart-* files from debug/`);
 
   let data = {};
   try {
@@ -272,6 +434,8 @@ async function main() {
   const owner = repo.split("/")[0] || "OWNER";
   const repoName = repo.split("/")[1] || "flight-tracker";
   const chartUrl = `https://${owner}.github.io/${repoName}/`;
+
+  const heuristicState = loadHeuristicState();
 
   console.log(`\n--- Results ---`);
   for (const { flight, result } of results) {
@@ -314,8 +478,63 @@ async function main() {
           chartUrl
         );
       }
+
+      // ---- Run heuristic analysis ----
+      let analysis = null;
+      try {
+        analysis = analyze({
+          flightDate: flight.date,
+          currentPrice: result.price,
+          currency: result.currency,
+          windowEntries: result.windowEntries,
+          history: previousEntries,
+          calculateRealPrice,
+        });
+      } catch (err) {
+        console.error(`  Heuristic analysis error for ${id}: ${err.message}`);
+      }
+
+      if (analysis) {
+        console.log(
+          `  Heuristic: ${analysis.tier} · quality=${analysis.quality} · urgency=${analysis.urgency} · confidence=${analysis.confidence}`
+        );
+        if (analysis.reasons.length > 0) {
+          console.log(`    Reasons: ${analysis.reasons.join("; ")}`);
+        }
+        try {
+          appendHeuristicLog(flight, result.price, result.currency, analysis);
+        } catch (err) {
+          console.error(
+            `  Failed to append heuristic log for ${id}: ${err.message}`
+          );
+        }
+
+        // Emit a BUY issue only on a fresh transition into BUY NOW — prevents
+        // hourly spam when the tier stays BUY NOW across runs.
+        const previousTier = heuristicState[id]?.lastTier || null;
+        if (analysis.tier === "BUY NOW" && previousTier !== "BUY NOW") {
+          console.log(
+            `  BUY NOW transition for ${id} (was ${previousTier || "none"}) — creating issue`
+          );
+          await createBuyRecommendationIssue(
+            flight,
+            result.price,
+            result.currency,
+            analysis,
+            chartUrl
+          );
+        }
+
+        heuristicState[id] = {
+          lastTier: analysis.tier,
+          lastPrice: result.price,
+          lastTimestamp: entry.timestamp,
+        };
+      }
     }
   }
+
+  saveHeuristicState(heuristicState);
 
   fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
   console.log(`\nData written to prices.json`);
