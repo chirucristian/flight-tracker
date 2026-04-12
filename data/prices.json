@@ -5,6 +5,12 @@
       "price": 1500,
       "currency": "RON",
       "raw": "1500 RON"
+    },
+    {
+      "timestamp": "2026-04-12T00:22:31.623Z",
+      "price": null,
+      "currency": null,
+      "raw": null
     }
   ]
 }
