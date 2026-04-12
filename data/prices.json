@@ -1,100 +1,10 @@
 {
   "otp-ory-2026-05-30": [
     {
-      "timestamp": "2026-04-11T15:20:38.472Z",
-      "price": null,
-      "currency": null,
-      "raw": "no flights on this date"
-    },
-    {
-      "timestamp": "2026-04-11T15:43:18.815Z",
-      "price": null,
-      "currency": null,
-      "raw": "no flights on this date"
-    },
-    {
-      "timestamp": "2026-04-11T15:48:48.242Z",
-      "price": null,
-      "currency": null,
-      "raw": null
-    },
-    {
-      "timestamp": "2026-04-11T15:55:51.913Z",
-      "price": 556,
+      "timestamp": "2026-04-12T00:00:00.000Z",
+      "price": 1500,
       "currency": "RON",
-      "raw": "556 RON"
-    },
-    {
-      "timestamp": "2026-04-11T16:00:57.076Z",
-      "price": 556,
-      "currency": "RON",
-      "raw": "556 RON"
-    },
-    {
-      "timestamp": "2026-04-11T16:07:18.528Z",
-      "price": 556,
-      "currency": "RON",
-      "raw": "556 RON"
-    },
-    {
-      "timestamp": "2026-04-11T16:24:42.646Z",
-      "price": 556,
-      "currency": "RON",
-      "raw": "556 RON"
-    },
-    {
-      "timestamp": "2026-04-11T17:24:00.642Z",
-      "price": 556,
-      "currency": "RON",
-      "raw": "556 RON"
-    },
-    {
-      "timestamp": "2026-04-11T18:29:32.457Z",
-      "price": 556,
-      "currency": "RON",
-      "raw": "556 RON"
-    },
-    {
-      "timestamp": "2026-04-11T19:29:06.779Z",
-      "price": 556,
-      "currency": "RON",
-      "raw": "556 RON"
-    },
-    {
-      "timestamp": "2026-04-11T20:07:02.105Z",
-      "price": null,
-      "currency": null,
-      "raw": null
-    },
-    {
-      "timestamp": "2026-04-11T20:20:46.773Z",
-      "price": null,
-      "currency": null,
-      "raw": null
-    },
-    {
-      "timestamp": "2026-04-11T21:23:13.925Z",
-      "price": null,
-      "currency": null,
-      "raw": null
-    },
-    {
-      "timestamp": "2026-04-11T22:21:11.841Z",
-      "price": null,
-      "currency": null,
-      "raw": null
-    },
-    {
-      "timestamp": "2026-04-11T23:22:54.677Z",
-      "price": null,
-      "currency": null,
-      "raw": null
-    },
-    {
-      "timestamp": "2026-04-12T00:13:17.956Z",
-      "price": 609,
-      "currency": "RON",
-      "raw": "609 RON"
+      "raw": "1500 RON"
     }
   ]
 }
