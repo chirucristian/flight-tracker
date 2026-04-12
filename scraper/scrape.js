@@ -248,6 +248,15 @@ async function main() {
   }
   console.log(`Existing price data: ${Object.keys(data).length} flight(s) tracked`);
 
+  // Remove orphaned flights no longer in flights.json
+  const activeIds = new Set(flights.map(flightId));
+  for (const key of Object.keys(data)) {
+    if (!activeIds.has(key)) {
+      delete data[key];
+      console.log(`  Removed orphaned flight data: ${key}`);
+    }
+  }
+
   const apiUrl = getApiUrl();
 
   const results = [];
