@@ -1,0 +1,17 @@
+{
+  "otp-ory-2026-05-30": {
+    "lastTier": "SKIP",
+    "lastPrice": 789,
+    "lastTimestamp": "2026-04-15T15:58:59.932Z"
+  },
+  "otp-ory-2026-05-29": {
+    "lastTier": "SKIP",
+    "lastPrice": 719,
+    "lastTimestamp": "2026-04-15T15:58:59.930Z"
+  },
+  "otp-ory-2026-05-31": {
+    "lastTier": "HOLD",
+    "lastPrice": 419,
+    "lastTimestamp": "2026-04-15T15:58:59.934Z"
+  }
+}

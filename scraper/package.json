@@ -1,0 +1,9 @@
+{
+  "name": "flight-tracker-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node scrape.js"
+  },
+  "dependencies": {}
+}

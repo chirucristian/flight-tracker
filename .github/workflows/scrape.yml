@@ -1,0 +1,59 @@
+name: Scrape Flights
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pages: write
+  id-token: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        working-directory: scraper
+        run: npm ci
+      - name: Run scraper
+        working-directory: scraper
+        run: node scrape.js
+      - name: Commit data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/ debug/
+          git diff --staged --quiet || git commit -m "price update $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git push
+
+  deploy:
+    needs: scrape
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Pull latest data
+        run: git pull
+      - name: Prepare deploy folder
+        run: |
+          mkdir _deploy
+          cp site/* _deploy/
+          cp -r data _deploy/data
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _deploy
+      - id: deployment
+        uses: actions/deploy-pages@v4

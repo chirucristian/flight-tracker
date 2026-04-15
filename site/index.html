@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flight Price Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    /* Header */
+    header {
+      margin-bottom: 1.75rem;
+    }
+
+    header h1 {
+      font-size: 1.375rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 0.375rem;
+      letter-spacing: -0.01em;
+    }
+
+    .header-meta {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+    }
+
+    .header-subtitle {
+      color: #64748b;
+      font-size: 0.8125rem;
+    }
+
+    #last-updated {
+      color: #94a3b8;
+      font-size: 0.75rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Flight list */
+    .flight-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .flight-item {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 0.8125rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.875rem;
+      cursor: pointer;
+      transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
+      user-select: none;
+    }
+
+    .flight-item:hover {
+      border-color: #bfdbfe;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+
+    .flight-item.active {
+      border-color: #93c5fd;
+      background: #f0f7ff;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.07);
+    }
+
+    .indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .indicator.green { background: #22c55e; }
+    .indicator.amber { background: #f59e0b; }
+    .indicator.red   { background: #ef4444; }
+
+    .flight-label {
+      flex: 1;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #334155;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .flight-range {
+      display: flex;
+      gap: 1.125rem;
+      flex-shrink: 0;
+    }
+
+    .range-item {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 1px;
+    }
+
+    .range-item .range-label {
+      font-size: 0.625rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #cbd5e1;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .range-item .range-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: #64748b;
+    }
+
+    .current-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #2563eb;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      padding: 0.3rem 0.625rem;
+      border-radius: 6px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    /* Chart section */
+    .chart-section {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 1.125rem 1.25rem 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.875rem;
+      gap: 1rem;
+    }
+
+    .chart-title {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    .selector select {
+      background: #f8fafc;
+      color: #334155;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 0.3rem 0.625rem;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.75rem;
+      cursor: pointer;
+      outline: none;
+      transition: border-color 0.12s;
+    }
+
+    .selector select:focus {
+      border-color: #93c5fd;
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: #94a3b8;
+    }
+
+    .empty-state p {
+      max-width: 380px;
+      margin: 0 auto;
+      line-height: 1.6;
+      font-size: 0.875rem;
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      color: #94a3b8;
+      font-size: 0.75rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    footer a {
+      color: #3b82f6;
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 600px) {
+      header h1 { font-size: 1.125rem; }
+      .flight-range { display: none; }
+      .flight-item { padding: 0.75rem 0.875rem; }
+      .container { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Flight Price Tracker</h1>
+      <div class="header-meta">
+        <span class="header-subtitle">Tracking Wizzair prices hourly</span>
+        <span id="last-updated"></span>
+      </div>
+    </header>
+
+    <div id="flight-list" class="flight-list"></div>
+
+    <div id="chart-section" class="chart-section" style="display:none;">
+      <div class="chart-header">
+        <span class="chart-title">Price history</span>
+        <div id="selector-container" class="selector" style="display:none;">
+          <select id="flight-select"></select>
+        </div>
+      </div>
+      <canvas id="price-chart"></canvas>
+    </div>
+
+    <div id="empty-state" class="empty-state" style="display:none;">
+      <p>No data yet. Go to the Actions tab on GitHub and run the workflow manually to start tracking.</p>
+    </div>
+
+    <footer></footer>
+  </div>
+
+  <script>
+    let chart = null;
+
+    // Format id like "buh-dbv-2026-07-17" → "BUH → DBV · Jul 17"
+    function formatFlightId(id) {
+      const parts = id.split('-');
+      if (parts.length >= 4) {
+        const origin = parts[0].toUpperCase();
+        const dest = parts[1].toUpperCase();
+        const dateStr = parts.slice(2).join('-');
+        const d = new Date(dateStr + 'T00:00:00');
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return `${origin} \u2192 ${dest} \u00b7 ${months[d.getMonth()]} ${d.getDate()}`;
+      }
+      return id;
+    }
+
+    // Sort flight ids by date
+    function sortedFlightIds(ids) {
+      return [...ids].sort((a, b) => {
+        const dateValue = id => {
+          const parts = id.split('-');
+          if (parts.length >= 4) {
+            return new Date(parts.slice(2).join('-') + 'T00:00:00').getTime();
+          }
+          return 0;
+        };
+        return dateValue(a) - dateValue(b);
+      });
+    }
+
+    async function init() {
+      let data;
+      try {
+        const res = await fetch('data/prices.json');
+        if (!res.ok) throw new Error('not found');
+        data = await res.json();
+      } catch {
+        data = {};
+      }
+
+      const rawIds = Object.keys(data).filter(id => data[id].length > 0);
+
+      if (rawIds.length === 0) {
+        document.getElementById('empty-state').style.display = 'block';
+        return;
+      }
+
+      const flightIds = sortedFlightIds(rawIds);
+
+      // Last updated (global)
+      const allEntries = flightIds.flatMap(id => data[id]);
+      const lastTimestamp = allEntries.reduce((latest, e) => e.timestamp > latest ? e.timestamp : latest, '');
+      if (lastTimestamp) {
+        document.getElementById('last-updated').textContent =
+          'Updated ' + new Date(lastTimestamp).toLocaleString();
+      }
+
+      // Build flight rows
+      const listEl = document.getElementById('flight-list');
+      const cardData = {};
+
+      for (const id of flightIds) {
+        const entries = data[id];
+        const prices = entries.filter(e => e.price !== null).map(e => e.price);
+        const currency = entries.find(e => e.currency)?.currency || 'RON';
+        const latestPrice = entries[entries.length - 1].price;
+
+        const min = prices.length ? Math.min(...prices) : null;
+        const max = prices.length ? Math.max(...prices) : null;
+
+        let indicatorClass = 'amber';
+        if (latestPrice !== null && min !== null && max !== null) {
+          const range = max - min;
+          if (range === 0 || latestPrice <= min * 1.1) indicatorClass = 'green';
+          else if (latestPrice >= max * 0.9) indicatorClass = 'red';
+        }
+
+        cardData[id] = { min, max, currency, prices };
+
+        const item = document.createElement('div');
+        item.className = 'flight-item';
+        item.dataset.id = id;
+        item.innerHTML = `
+          <div class="indicator ${indicatorClass}"></div>
+          <span class="flight-label">${escapeHtml(formatFlightId(id))}</span>
+          <div class="flight-range">
+            <div class="range-item">
+              <span class="range-label">Min</span>
+              <span class="range-value">${min !== null ? min.toLocaleString() : '—'}</span>
+            </div>
+            <div class="range-item">
+              <span class="range-label">Max</span>
+              <span class="range-value">${max !== null ? max.toLocaleString() : '—'}</span>
+            </div>
+          </div>
+          <div class="current-badge">${latestPrice !== null ? latestPrice.toLocaleString() + '\u00a0' + currency : 'N/A'}</div>
+        `;
+
+        item.addEventListener('click', () => {
+          setActiveItem(id);
+          renderChart(data, id, cardData);
+          const sel = document.getElementById('flight-select');
+          if (sel) sel.value = id;
+        });
+
+        listEl.appendChild(item);
+      }
+
+      // Flight selector (for chart)
+      const select = document.getElementById('flight-select');
+      for (const id of flightIds) {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = formatFlightId(id);
+        select.appendChild(opt);
+      }
+
+      if (flightIds.length > 1) {
+        document.getElementById('selector-container').style.display = 'block';
+        select.addEventListener('change', () => {
+          setActiveItem(select.value);
+          renderChart(data, select.value, cardData);
+        });
+      }
+
+      document.getElementById('chart-section').style.display = 'block';
+      setActiveItem(flightIds[0]);
+      renderChart(data, flightIds[0], cardData);
+    }
+
+    function setActiveItem(id) {
+      document.querySelectorAll('.flight-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.id === id);
+      });
+    }
+
+    function renderChart(data, flightId, cardData) {
+      const entries = data[flightId];
+      const { min: minPrice, currency } = cardData[flightId];
+
+      const dataPoints = entries.map(e => ({ x: new Date(e.timestamp), y: e.price }));
+
+      const ctx = document.getElementById('price-chart').getContext('2d');
+      if (chart) chart.destroy();
+
+      const gradient = ctx.createLinearGradient(0, 0, 0, 280);
+      gradient.addColorStop(0, 'rgba(59,130,246,0.1)');
+      gradient.addColorStop(1, 'rgba(59,130,246,0)');
+
+      const datasets = [
+        {
+          label: `Price (${currency})`,
+          data: dataPoints,
+          borderColor: '#3b82f6',
+          backgroundColor: gradient,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          pointBackgroundColor: '#3b82f6',
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 2,
+          spanGaps: false,
+        }
+      ];
+
+      if (minPrice !== null) {
+        datasets.push({
+          label: `Low: ${minPrice.toLocaleString()} ${currency}`,
+          data: dataPoints.map(p => ({ x: p.x, y: minPrice })),
+          borderColor: '#22c55e',
+          borderDash: [5, 4],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          fill: false,
+          tension: 0,
+        });
+      }
+
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+          responsive: true,
+          aspectRatio: window.innerWidth < 600 ? 1.4 : 2.8,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: {
+              labels: {
+                color: '#94a3b8',
+                font: { family: 'Inter', size: 11 },
+                boxWidth: 14,
+                padding: 14,
+              }
+            },
+            tooltip: {
+              backgroundColor: '#ffffff',
+              titleColor: '#0f172a',
+              bodyColor: '#475569',
+              borderColor: '#e2e8f0',
+              borderWidth: 1,
+              titleFont: { family: 'Inter', weight: '600', size: 12 },
+              bodyFont: { family: 'JetBrains Mono', size: 12 },
+              padding: 10,
+              callbacks: {
+                title: items => items.length ? new Date(items[0].parsed.x).toLocaleString() : '',
+                label: item => {
+                  if (item.datasetIndex !== 0) return null;
+                  const val = item.parsed.y;
+                  return val !== null ? ` ${val.toLocaleString()} ${currency}` : ' No data';
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                unit: 'hour',
+                stepSize: 1,
+                tooltipFormat: 'MMM d HH:mm',
+                displayFormats: { hour: 'MMM d HH:mm', day: 'MMM d' }
+              },
+              ticks: { color: '#94a3b8', font: { family: 'Inter', size: 10 }, maxRotation: 45 },
+              grid: { color: '#f1f5f9' },
+              border: { color: '#e2e8f0' },
+            },
+            y: {
+              title: { display: true, text: currency, color: '#94a3b8', font: { family: 'Inter', size: 11 } },
+              ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 11 } },
+              grid: { color: '#f8fafc' },
+              border: { color: '#e2e8f0' },
+            }
+          }
+        }
+      });
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    init();
+  </script>
+</body>
+</html>
