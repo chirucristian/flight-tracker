@@ -482,7 +482,7 @@ function analyze({
     );
   }
   if (bucketCeilingWarning) {
-    reasons.push("near top of current bucket — jump imminent if this fares out");
+    reasons.push("near top of current bucket");
   }
   if (windowTrendActive) {
     if (windowTrendDirection === "dropping") {
