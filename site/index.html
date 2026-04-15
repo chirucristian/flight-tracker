@@ -447,10 +447,6 @@
           <span id="hcard-quality-val" class="hmetric-val"></span>
         </div>
         <div class="hmetric">
-          <span class="hmetric-label">Urgency</span>
-          <span id="hcard-urgency" class="pill"></span>
-        </div>
-        <div class="hmetric">
           <span class="hmetric-label">Confidence</span>
           <span id="hcard-confidence" class="pill"></span>
         </div>
@@ -563,13 +559,6 @@
       document.getElementById('hcard-quality-bar').style.width = q + '%';
       document.getElementById('hcard-quality-bar').style.background = qualityColor(q);
       document.getElementById('hcard-quality-val').textContent = q + ' / 100';
-
-      // Urgency pill
-      const urgEl = document.getElementById('hcard-urgency');
-      const urgClass = { high: 'pill-high', medium: 'pill-medium', low: 'pill-low' };
-      const urgIcon  = { high: '↑↑', medium: '↑', low: '—' };
-      urgEl.className = 'pill ' + (urgClass[a.urgency] || 'pill-low');
-      urgEl.textContent = (urgIcon[a.urgency] || '') + ' ' + (a.urgency || 'low').toUpperCase();
 
       // Confidence pill
       const confEl = document.getElementById('hcard-confidence');

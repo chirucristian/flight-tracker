@@ -324,7 +324,6 @@ async function createBuyRecommendationIssue(flight, price, currency, analysis, c
     `|--------|-------|`,
     `| **Price** | **${price} ${currency}** |`,
     `| Quality | ${analysis.quality} / 100 |`,
-    `| Urgency | ${analysis.urgency} (${analysis.urgencyScore}) |`,
     `| Confidence | ${analysis.confidence} |`,
     `| Days to departure | ${analysis.daysToDeparture} |`,
     analysis.sevenDayChangePct !== null
