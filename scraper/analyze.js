@@ -335,15 +335,15 @@ function analyze({
     .reduce((sum, s) => sum + s.value, 0);
   const quality = activeMax > 0 ? Math.round((rawTotal / activeMax) * 100) : 0;
 
-  // ---------- Urgency ----------
-  let urgencyScore = 0;
-  if (daysToDeparture > 120) urgencyScore += 0;
-  else if (daysToDeparture > 90) urgencyScore += 2;
-  else if (daysToDeparture > 60) urgencyScore += 4;
-  else if (daysToDeparture > 30) urgencyScore += 5;
-  else if (daysToDeparture > 14) urgencyScore += 4;
-  else if (daysToDeparture > 7) urgencyScore += 2;
-  else urgencyScore += 1;
+  // ---------- Urgency (disabled) ----------
+  // let urgencyScore = 0;
+  // if (daysToDeparture > 120) urgencyScore += 0;
+  // else if (daysToDeparture > 90) urgencyScore += 2;
+  // else if (daysToDeparture > 60) urgencyScore += 4;
+  // else if (daysToDeparture > 30) urgencyScore += 5;
+  // else if (daysToDeparture > 14) urgencyScore += 4;
+  // else if (daysToDeparture > 7) urgencyScore += 2;
+  // else urgencyScore += 1;
 
   // 7-day rising trend — baseline is the median of the EARLIER HALF of the
   // last week's observations, not the single oldest scrape. One stale or
@@ -363,15 +363,15 @@ function analyze({
       .sort((a, b) => a - b);
     const baseline = earlyPrices[Math.floor(earlyPrices.length / 2)];
     sevenDayChange = (currentPrice - baseline) / baseline;
-    if (sevenDayChange >= 0.2) urgencyScore += 3;
-    else if (sevenDayChange >= 0.1) urgencyScore += 2;
-    else if (sevenDayChange >= 0.05) urgencyScore += 1;
+    // if (sevenDayChange >= 0.2) urgencyScore += 3;
+    // else if (sevenDayChange >= 0.1) urgencyScore += 2;
+    // else if (sevenDayChange >= 0.05) urgencyScore += 1;
   } else if (recentSorted.length === 1) {
     const baseline = recentSorted[0].price;
     sevenDayChange = (currentPrice - baseline) / baseline;
-    if (sevenDayChange >= 0.2) urgencyScore += 3;
-    else if (sevenDayChange >= 0.1) urgencyScore += 2;
-    else if (sevenDayChange >= 0.05) urgencyScore += 1;
+    // if (sevenDayChange >= 0.2) urgencyScore += 3;
+    // else if (sevenDayChange >= 0.1) urgencyScore += 2;
+    // else if (sevenDayChange >= 0.05) urgencyScore += 1;
   }
 
   // Bucket ceiling proximity — within 5% of the top of the current bucket.
@@ -386,24 +386,23 @@ function analyze({
   ) {
     const bucketMax = Math.max(...buckets[currentBucketIndex]);
     if (currentPrice >= bucketMax * 0.95) {
-      urgencyScore += 2;
+      // urgencyScore += 2;
       bucketCeilingWarning = true;
     }
   }
 
   // Bucket transition — moving up a bucket signals escalating price tier.
-  if (bucketTransition === "up") urgencyScore += 2;
+  // if (bucketTransition === "up") urgencyScore += 2;
 
   // Rising fare window — broad upward pressure across the window.
-  if (windowTrendDirection === "rising" && windowTrendPct !== null) {
-    if (windowTrendPct >= 20) urgencyScore += 3;
-    else if (windowTrendPct >= 10) urgencyScore += 2;
-    else if (windowTrendPct >= 3) urgencyScore += 1;
-  }
+  // if (windowTrendDirection === "rising" && windowTrendPct !== null) {
+  //   if (windowTrendPct >= 20) urgencyScore += 3;
+  //   else if (windowTrendPct >= 10) urgencyScore += 2;
+  //   else if (windowTrendPct >= 3) urgencyScore += 1;
+  // }
 
-  let urgency = "low";
-  if (urgencyScore >= 7) urgency = "high";
-  else if (urgencyScore >= 4) urgency = "medium";
+  const urgencyScore = 0;
+  const urgency = "low";
 
   // ---------- Confidence ----------
   const historyDays = calcHistorySpanDays(validHistory);
