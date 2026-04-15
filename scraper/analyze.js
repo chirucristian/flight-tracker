@@ -1,22 +1,26 @@
 // Fare analysis heuristic for Wizz Air / Ryanair style low-cost carriers.
 //
-// Quality score (0-100) from 6 orthogonal signals with graceful degradation:
-//   1. DOW-normalized window percentile (30 pts) — cheap for this weekday?
-//   2. Bucket position (25 pts)                  — which rung of the fare ladder?
-//   3. DTD-floor proximity (20 pts)              — best seen at this booking stage?
-//   4. Sibling-date independence (15 pts)        — is a nearby date cheaper?
-//   5. Absolute-floor proximity (10 pts)         — close to all-time min for this flight?
-//   6. Window price trend (10 pts, hist only)    — is the surrounding fare window dropping?
+// Quality score (0-100) from 6 signals with graceful degradation:
+//   1. DOW-normalized window percentile (30 pts, 20 when fallback)
+//        — cheap for this weekday? Uses mid-rank percentile (outlier-robust).
+//   2. Bucket position (25 pts) — which rung of the detected fare ladder?
+//   3. DTD-floor proximity (15 pts) — best seen at this booking stage?
+//   4. Sibling-date independence (15 pts) — is a nearby date cheaper?
+//        Searches ±5 days; partially restores score for structurally cheaper siblings.
+//   5. Absolute-floor proximity (10 pts) — close to all-time min for this flight?
+//   6. Window price trend (10 pts, hist only) — is the surrounding window dropping?
 //
 // Urgency level (low/medium/high) from:
 //   - Days-to-departure curve
-//   - 7-day rising trend
-//   - Bucket ceiling proximity
+//   - 7-day rising trend (baseline = median of earlier half, not single oldest)
+//   - Bucket ceiling proximity (only with ≥3 samples in current bucket)
 //   - Bucket transition (moved up a bucket since last observation)
 //   - Rising fare window trend
 //
 // Decision tier comes from a Quality x Urgency matrix — urgency amplifies
-// good deals but never rescues bad ones.
+// good deals but never rescues bad ones. Low confidence then downgrades the
+// tier by one step (BUY NOW → GOOD DEAL → HOLD) so sparse-data calls never
+// produce a false-positive buy signal.
 //
 // historicalWindowEntries (optional): full window-cache array for this flight.
 // When absent or empty all historical signals degrade gracefully to current-
@@ -119,20 +123,27 @@ function analyze({
   let dowScore = 0;
   let dowActive = false;
   let dowFallback = false;
+  // Fallback halves-ish the weight (30 → 20) so a non-DOW-specific percentile
+  // can't masquerade as a DOW-specific one in the normalization.
+  const dowMaxFull = 30;
+  const dowMaxFallback = 20;
+  let dowMax = dowMaxFull;
   if (sameDowHistPrices.length >= 4) {
-    dowScore = percentileScore(currentPrice, sameDowHistPrices, 30);
+    dowScore = percentileScore(currentPrice, sameDowHistPrices, dowMaxFull);
     dowActive = true;
   } else if (sameDowSnapPrices.length >= 4) {
-    dowScore = percentileScore(currentPrice, sameDowSnapPrices, 30);
+    dowScore = percentileScore(currentPrice, sameDowSnapPrices, dowMaxFull);
     dowActive = true;
   } else if (histWindow.length >= 4) {
-    dowScore = percentileScore(currentPrice, histWindow.map((w) => w.price), 30);
+    dowScore = percentileScore(currentPrice, histWindow.map((w) => w.price), dowMaxFallback);
     dowActive = true;
     dowFallback = true;
+    dowMax = dowMaxFallback;
   } else if (window.length >= 4) {
-    dowScore = percentileScore(currentPrice, window.map((w) => w.price), 30);
+    dowScore = percentileScore(currentPrice, window.map((w) => w.price), dowMaxFallback);
     dowActive = true;
     dowFallback = true;
+    dowMax = dowMaxFallback;
   }
 
   // ---------- Signal 2: bucket position (max 25) ----------
@@ -181,8 +192,9 @@ function analyze({
     }
   }
 
-  // ---------- Signal 3: DTD-floor proximity (max 20) ----------
+  // ---------- Signal 3: DTD-floor proximity (max 15) ----------
   // "Lowest price ever observed with at least this many days to departure."
+  // Weight reduced from 20 → 15 since it partially overlaps absolute-floor.
   let dtdFloorScore = 0;
   let dtdFloorActive = false;
   let dtdFloor = null;
@@ -198,18 +210,19 @@ function analyze({
   if (historicalAtOrBeyondDTD.length >= 5) {
     dtdFloor = Math.min(...historicalAtOrBeyondDTD.map((h) => h.price));
     const ratio = (currentPrice - dtdFloor) / dtdFloor;
-    dtdFloorScore = 20 * Math.max(0, 1 - ratio / 0.25);
+    dtdFloorScore = 15 * Math.max(0, 1 - ratio / 0.25);
     dtdFloorActive = true;
   }
 
   // ---------- Signal 4: sibling-date independence (max 15) ----------
+  // ±5 day window (was ±3) — wider alternative search for genuinely cheaper dates.
   const targetTs = target.getTime();
   // Use histWindow for sibling prices when it has more data.
   const siblingSource = histWindow.length > window.length ? histWindow : window;
   const siblings = siblingSource.filter((w) => {
     const d = new Date(w.date + "T00:00:00Z").getTime();
     const delta = Math.round((d - targetTs) / 86400000);
-    return delta >= -3 && delta <= 3 && w.date !== flightDate;
+    return delta >= -5 && delta <= 5 && w.date !== flightDate;
   });
 
   let siblingScore = 15;
@@ -306,9 +319,9 @@ function analyze({
 
   // ---------- Compose quality score with graceful degradation ----------
   const signalDefs = [
-    { key: "dowPercentile", value: dowScore, max: 30, active: dowActive },
+    { key: "dowPercentile", value: dowScore, max: dowMax, active: dowActive },
     { key: "bucketPosition", value: bucketScore, max: 25, active: bucketActive },
-    { key: "dtdFloor", value: dtdFloorScore, max: 20, active: dtdFloorActive },
+    { key: "dtdFloor", value: dtdFloorScore, max: 15, active: dtdFloorActive },
     { key: "siblingIndependence", value: siblingScore, max: 15, active: siblingActive },
     { key: "absoluteFloor", value: absFloorScore, max: 10, active: absFloorActive },
     { key: "windowTrend", value: windowTrendScore, max: 10, active: windowTrendActive },
@@ -332,8 +345,9 @@ function analyze({
   else if (daysToDeparture > 7) urgencyScore += 2;
   else urgencyScore += 1;
 
-  // 7-day rising trend — use the OLDEST observation within the last 7 days
-  // as the baseline, so we measure "how much has it moved over the last week".
+  // 7-day rising trend — baseline is the median of the EARLIER HALF of the
+  // last week's observations, not the single oldest scrape. One stale or
+  // noisy early point shouldn't be able to dictate the whole comparison.
   const sevenDaysAgoTs = nowDate.getTime() - 7 * 86400000;
   const recentSorted = validHistory
     .map((h) => ({ ts: new Date(h.timestamp).getTime(), price: h.price }))
@@ -341,7 +355,18 @@ function analyze({
     .sort((a, b) => a.ts - b.ts);
 
   let sevenDayChange = null;
-  if (recentSorted.length > 0) {
+  if (recentSorted.length >= 2) {
+    const half = Math.max(1, Math.floor(recentSorted.length / 2));
+    const earlyPrices = recentSorted
+      .slice(0, half)
+      .map((h) => h.price)
+      .sort((a, b) => a - b);
+    const baseline = earlyPrices[Math.floor(earlyPrices.length / 2)];
+    sevenDayChange = (currentPrice - baseline) / baseline;
+    if (sevenDayChange >= 0.2) urgencyScore += 3;
+    else if (sevenDayChange >= 0.1) urgencyScore += 2;
+    else if (sevenDayChange >= 0.05) urgencyScore += 1;
+  } else if (recentSorted.length === 1) {
     const baseline = recentSorted[0].price;
     sevenDayChange = (currentPrice - baseline) / baseline;
     if (sevenDayChange >= 0.2) urgencyScore += 3;
@@ -350,11 +375,14 @@ function analyze({
   }
 
   // Bucket ceiling proximity — within 5% of the top of the current bucket.
+  // Require ≥3 samples in the current bucket so a 1-2 point bucket can't
+  // produce a spurious "near ceiling" warning.
   let bucketCeilingWarning = false;
   if (
     currentBucketIndex !== null &&
     buckets.length > 1 &&
-    currentBucketIndex < buckets.length - 1
+    currentBucketIndex < buckets.length - 1 &&
+    buckets[currentBucketIndex].length >= 3
   ) {
     const bucketMax = Math.max(...buckets[currentBucketIndex]);
     if (currentPrice >= bucketMax * 0.95) {
@@ -377,9 +405,6 @@ function analyze({
   if (urgencyScore >= 7) urgency = "high";
   else if (urgencyScore >= 4) urgency = "medium";
 
-  // ---------- Decision matrix ----------
-  const tier = decideTier(quality, urgency);
-
   // ---------- Confidence ----------
   const historyDays = calcHistorySpanDays(validHistory);
   // Use the richer dataset for the window-coverage count.
@@ -397,6 +422,11 @@ function analyze({
   if (distinctObsDays >= 3 && confidence === "low" && windowPriced >= 6) {
     confidence = "medium";
   }
+
+  // ---------- Decision matrix (confidence-aware) ----------
+  // Runs after confidence so low-confidence calls can be downgraded instead
+  // of producing false-positive buy signals on sparse data.
+  const tier = decideTier(quality, urgency, confidence);
 
   // ---------- Human-readable reasons ----------
   const reasons = [];
@@ -503,13 +533,20 @@ function analyze({
   };
 }
 
+// True rank-based (mid-rank) percentile. A single outlier cheap fare used to
+// compress the whole scale with the old min-max approach; rank is robust to
+// that. Returns maxPoints when `value` is the cheapest in `values`.
 function percentileScore(value, values, maxPoints) {
   if (!values || values.length === 0) return 0;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  if (max === min) return maxPoints;
-  const normalized = (value - min) / (max - min);
-  return maxPoints * Math.max(0, Math.min(1, 1 - normalized));
+  let below = 0;
+  let equal = 0;
+  for (const v of values) {
+    if (v < value) below++;
+    else if (v === value) equal++;
+  }
+  // Mid-rank: ties split the equal count so the score is symmetric.
+  const rank = (below + 0.5 * equal) / values.length; // 0 = cheapest, 1 = most expensive
+  return maxPoints * (1 - Math.max(0, Math.min(1, rank)));
 }
 
 // Gap-based clustering: split whenever the gap to the next price exceeds
@@ -553,13 +590,23 @@ function findBucketIndex(price, buckets) {
   return nearest;
 }
 
-function decideTier(quality, urgency) {
+function decideTier(quality, urgency, confidence) {
   const u = urgency === "low" ? 0 : urgency === "medium" ? 1 : 2;
-  if (quality >= 85) return u >= 1 ? "BUY NOW" : "GOOD DEAL";
-  if (quality >= 70) return u >= 2 ? "BUY NOW" : u >= 1 ? "GOOD DEAL" : "HOLD";
-  if (quality >= 55) return u >= 2 ? "GOOD DEAL" : "HOLD";
-  if (quality >= 40) return u >= 1 ? "HOLD" : "SKIP";
-  return "SKIP";
+  let tier;
+  if (quality >= 85) tier = u >= 1 ? "BUY NOW" : "GOOD DEAL";
+  else if (quality >= 70) tier = u >= 2 ? "BUY NOW" : u >= 1 ? "GOOD DEAL" : "HOLD";
+  else if (quality >= 55) tier = u >= 2 ? "GOOD DEAL" : "HOLD";
+  else if (quality >= 40) tier = u >= 1 ? "HOLD" : "SKIP";
+  else tier = "SKIP";
+
+  // Low confidence protects against false positives by stepping the tier
+  // down one level. It never upgrades — sparse data shouldn't rescue a bad
+  // call, only hedge a good one.
+  if (confidence === "low") {
+    if (tier === "BUY NOW") tier = "GOOD DEAL";
+    else if (tier === "GOOD DEAL") tier = "HOLD";
+  }
+  return tier;
 }
 
 function calcHistorySpanDays(history) {
