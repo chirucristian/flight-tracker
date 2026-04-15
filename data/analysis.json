@@ -52,7 +52,7 @@
       "expensive for this weekday in the window",
       "bucket 8/9 (1 = cheapest)",
       "56% cheaper on 2026-06-01",
-      "near top of current bucket — jump imminent if this fares out"
+      "near top of current bucket"
     ],
     "siblingSuggestion": {
       "date": "2026-06-01",
@@ -108,7 +108,7 @@
       }
     ],
     "currentBucketIndex": 7,
-    "timestamp": "2026-04-15T22:10:09.550Z"
+    "timestamp": "2026-04-15T22:13:37.022Z"
   },
   "otp-ory-2026-05-30": {
     "tier": "SKIP",
@@ -220,7 +220,7 @@
       }
     ],
     "currentBucketIndex": 8,
-    "timestamp": "2026-04-15T22:10:09.550Z"
+    "timestamp": "2026-04-15T22:13:37.022Z"
   },
   "otp-ory-2026-05-31": {
     "tier": "HOLD",
@@ -273,7 +273,7 @@
     },
     "reasons": [
       "bucket 3/9 (1 = cheapest)",
-      "near top of current bucket — jump imminent if this fares out"
+      "near top of current bucket"
     ],
     "siblingSuggestion": null,
     "bucketCeilingWarning": true,
@@ -325,6 +325,6 @@
       }
     ],
     "currentBucketIndex": 2,
-    "timestamp": "2026-04-15T22:10:09.550Z"
+    "timestamp": "2026-04-15T22:13:37.022Z"
   }
 }
