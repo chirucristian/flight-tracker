@@ -1,32 +1,40 @@
 // Fare analysis heuristic for Wizz Air / Ryanair style low-cost carriers.
 //
-// Quality score (0-100) from 5 orthogonal signals with graceful degradation:
+// Quality score (0-100) from 6 orthogonal signals with graceful degradation:
 //   1. DOW-normalized window percentile (30 pts) — cheap for this weekday?
 //   2. Bucket position (25 pts)                  — which rung of the fare ladder?
 //   3. DTD-floor proximity (20 pts)              — best seen at this booking stage?
 //   4. Sibling-date independence (15 pts)        — is a nearby date cheaper?
 //   5. Absolute-floor proximity (10 pts)         — close to all-time min for this flight?
+//   6. Window price trend (10 pts, hist only)    — is the surrounding fare window dropping?
 //
 // Urgency level (low/medium/high) from:
 //   - Days-to-departure curve
 //   - 7-day rising trend
 //   - Bucket ceiling proximity
+//   - Bucket transition (moved up a bucket since last observation)
+//   - Rising fare window trend
 //
 // Decision tier comes from a Quality x Urgency matrix — urgency amplifies
 // good deals but never rescues bad ones.
+//
+// historicalWindowEntries (optional): full window-cache array for this flight.
+// When absent or empty all historical signals degrade gracefully to current-
+// snapshot behaviour — no behaviour change for callers that omit the field.
 
 function analyze({
   flightDate,
   currentPrice,
   currency,
   windowEntries,
+  historicalWindowEntries,
   history,
   calculateRealPrice,
   now,
 }) {
   const nowDate = now ? new Date(now) : new Date();
 
-  // Normalize the 60-day (currently ~15-day) window to real prices.
+  // Normalize the current snapshot window to real prices.
   const window = (windowEntries || [])
     .filter((e) => e && e.priceType === "price" && e.price && e.price.amount > 0)
     .map((e) => ({
@@ -44,21 +52,83 @@ function analyze({
     Math.round((target.getTime() - nowDate.getTime()) / 86400000)
   );
 
+  // ---- Build historical window structures (from window-cache) ----
+  //
+  // histWindow      : most-recent observed price per calendar date across all
+  //                   scrapes. Richer than a single snapshot; used for DOW,
+  //                   bucket, and sibling signals.
+  //
+  // snapshotGroups  : Map<observedAt (YYYY-MM-DD), Map<calDate, realPrice>>
+  //                   Used for bucket-transition and window-trend signals.
+  //
+  // When historicalWindowEntries is absent/empty, histWindow falls back to
+  // the current snapshot and snapshotGroups stays empty — all new signals
+  // deactivate automatically via their `active` flags.
+  const hasHistorical =
+    Array.isArray(historicalWindowEntries) && historicalWindowEntries.length > 0;
+
+  let histWindow = window; // fallback: same as current snapshot
+  let distinctObsDays = 0;
+  const snapshotGroups = new Map(); // observedAt → Map<calDate, realPrice>
+
+  if (hasHistorical) {
+    const latestPerDate = new Map(); // calDate → { price, observedAt }
+
+    for (const e of historicalWindowEntries) {
+      if (!e || e.priceType !== "price" || !e.price || !(e.price.amount > 0)) continue;
+      const calDate = (e.date || "").substring(0, 10);
+      const obsDate = (e.observedAt || "").substring(0, 10);
+      if (!calDate || !obsDate) continue;
+
+      // Per-snapshot group (bucket-transition / window-trend analysis)
+      if (!snapshotGroups.has(obsDate)) snapshotGroups.set(obsDate, new Map());
+      const sg = snapshotGroups.get(obsDate);
+      if (!sg.has(calDate)) sg.set(calDate, calculateRealPrice(e.price.amount));
+
+      // Track most-recently-observed price per calendar date
+      const prev = latestPerDate.get(calDate);
+      if (!prev || obsDate > prev.observedAt) {
+        latestPerDate.set(calDate, {
+          price: calculateRealPrice(e.price.amount),
+          observedAt: obsDate,
+        });
+      }
+    }
+
+    distinctObsDays = snapshotGroups.size;
+    if (latestPerDate.size > 0) {
+      histWindow = Array.from(latestPerDate.entries()).map(([date, v]) => ({
+        date,
+        price: v.price,
+      }));
+    }
+  }
+
   // ---------- Signal 1: DOW-normalized window percentile (max 30) ----------
   const targetDOW = target.getUTCDay();
-  const sameDowPrices = window
-    .filter((w) => {
-      const d = new Date(w.date + "T00:00:00Z");
-      return d.getUTCDay() === targetDOW;
-    })
+
+  // Prefer histWindow (richer dataset) for same-DOW prices; fall back to
+  // current snapshot, then all-prices fallback.
+  const sameDowHistPrices = histWindow
+    .filter((w) => new Date(w.date + "T00:00:00Z").getUTCDay() === targetDOW)
+    .map((w) => w.price);
+  const sameDowSnapPrices = window
+    .filter((w) => new Date(w.date + "T00:00:00Z").getUTCDay() === targetDOW)
     .map((w) => w.price);
 
   let dowScore = 0;
   let dowActive = false;
   let dowFallback = false;
-  if (sameDowPrices.length >= 4) {
-    dowScore = percentileScore(currentPrice, sameDowPrices, 30);
+  if (sameDowHistPrices.length >= 4) {
+    dowScore = percentileScore(currentPrice, sameDowHistPrices, 30);
     dowActive = true;
+  } else if (sameDowSnapPrices.length >= 4) {
+    dowScore = percentileScore(currentPrice, sameDowSnapPrices, 30);
+    dowActive = true;
+  } else if (histWindow.length >= 4) {
+    dowScore = percentileScore(currentPrice, histWindow.map((w) => w.price), 30);
+    dowActive = true;
+    dowFallback = true;
   } else if (window.length >= 4) {
     dowScore = percentileScore(currentPrice, window.map((w) => w.price), 30);
     dowActive = true;
@@ -66,8 +136,10 @@ function analyze({
   }
 
   // ---------- Signal 2: bucket position (max 25) ----------
-  const sortedWindow = window.map((w) => w.price).sort((a, b) => a - b);
-  const buckets = clusterBuckets(sortedWindow);
+  // Use the richer dataset for clustering; more price points → better gaps.
+  const clusterSource = histWindow.length > window.length ? histWindow : window;
+  const sortedCluster = clusterSource.map((w) => w.price).sort((a, b) => a - b);
+  const buckets = clusterBuckets(sortedCluster);
   let bucketScore = 0;
   let bucketActive = false;
   let currentBucketIndex = null;
@@ -76,6 +148,37 @@ function analyze({
     bucketScore =
       25 * (1 - currentBucketIndex / Math.max(buckets.length - 1, 1));
     bucketActive = true;
+  }
+
+  // Bucket transition: did the target date move to a higher/lower bucket?
+  // Compare relative bucket position between the two most recent observation days
+  // that both contain a price for the target flight date.
+  let bucketTransition = null; // 'up' | 'down' | null
+  if (hasHistorical && snapshotGroups.size >= 2) {
+    const sortedObs = Array.from(snapshotGroups.keys()).sort();
+    const snapsWithTarget = sortedObs.filter((d) =>
+      snapshotGroups.get(d).has(flightDate)
+    );
+    if (snapsWithTarget.length >= 2) {
+      const prevObs = snapsWithTarget[snapsWithTarget.length - 2];
+      const currObs = snapsWithTarget[snapsWithTarget.length - 1];
+      const prevSg = snapshotGroups.get(prevObs);
+      const currSg = snapshotGroups.get(currObs);
+      const prevBuckets = clusterBuckets(
+        Array.from(prevSg.values()).sort((a, b) => a - b)
+      );
+      const currBucketsSnap = clusterBuckets(
+        Array.from(currSg.values()).sort((a, b) => a - b)
+      );
+      if (prevBuckets.length >= 2 && currBucketsSnap.length >= 2) {
+        const prevIdx = findBucketIndex(prevSg.get(flightDate), prevBuckets);
+        const currIdx = findBucketIndex(currSg.get(flightDate), currBucketsSnap);
+        const prevRel = prevIdx / Math.max(prevBuckets.length - 1, 1);
+        const currRel = currIdx / Math.max(currBucketsSnap.length - 1, 1);
+        if (currRel > prevRel + 0.15) bucketTransition = "up";
+        else if (currRel < prevRel - 0.15) bucketTransition = "down";
+      }
+    }
   }
 
   // ---------- Signal 3: DTD-floor proximity (max 20) ----------
@@ -101,7 +204,9 @@ function analyze({
 
   // ---------- Signal 4: sibling-date independence (max 15) ----------
   const targetTs = target.getTime();
-  const siblings = window.filter((w) => {
+  // Use histWindow for sibling prices when it has more data.
+  const siblingSource = histWindow.length > window.length ? histWindow : window;
+  const siblings = siblingSource.filter((w) => {
     const d = new Date(w.date + "T00:00:00Z").getTime();
     const delta = Math.round((d - targetTs) / 86400000);
     return delta >= -3 && delta <= 3 && w.date !== flightDate;
@@ -114,8 +219,27 @@ function analyze({
     const cheapest = siblings.reduce((a, b) => (a.price < b.price ? a : b));
     const gap = (cheapest.price - currentPrice) / currentPrice;
     if (gap < 0) {
-      // A sibling is cheaper than the queried date.
       siblingScore = 15 * Math.max(0, 1 - -gap / 0.25);
+
+      // With enough history, check if the sibling is *persistently* cheaper.
+      // A structurally cheaper sibling is less meaningful as a signal, so
+      // partially restore the score when it was always cheaper.
+      if (hasHistorical && snapshotGroups.size >= 3) {
+        const sibDate = cheapest.date;
+        const snapsWithBoth = Array.from(snapshotGroups.values()).filter(
+          (sg) => sg.has(flightDate) && sg.has(sibDate)
+        );
+        if (snapsWithBoth.length >= 3) {
+          const alwaysCheaper = snapsWithBoth.filter(
+            (sg) => sg.get(sibDate) < sg.get(flightDate)
+          ).length;
+          if (alwaysCheaper / snapsWithBoth.length >= 0.8) {
+            // Structural price gap — partial score restoration
+            siblingScore = Math.min(15, siblingScore * 1.5);
+          }
+        }
+      }
+
       if (-gap >= 0.15) {
         siblingSuggestion = {
           date: cheapest.date,
@@ -137,6 +261,49 @@ function analyze({
     absFloorActive = true;
   }
 
+  // ---------- Signal 6: window price trend (max 10, historical only) ----------
+  // Median window price per observation day → overall fare-window direction.
+  // Dropping window → quality boost (prices softening, good time to buy).
+  // Rising window → urgency boost (handled in urgency section; score stays 0).
+  // Stable window → neutral (half score).
+  let windowTrendScore = 0;
+  let windowTrendActive = false;
+  let windowTrendDirection = null; // 'dropping' | 'stable' | 'rising'
+  let windowTrendPct = null;
+
+  if (hasHistorical && snapshotGroups.size >= 3) {
+    const sortedObs = Array.from(snapshotGroups.keys()).sort();
+    const medians = sortedObs
+      .map((obsDate) => {
+        const prices = Array.from(snapshotGroups.get(obsDate).values()).sort(
+          (a, b) => a - b
+        );
+        return prices.length > 0 ? prices[Math.floor(prices.length / 2)] : null;
+      })
+      .filter((m) => m !== null);
+
+    if (medians.length >= 3) {
+      const first = medians[0];
+      const last = medians[medians.length - 1];
+      const trendFrac = (last - first) / first;
+      windowTrendPct = Math.round(trendFrac * 1000) / 10;
+
+      if (trendFrac <= -0.03) {
+        windowTrendDirection = "dropping";
+        windowTrendScore = 10 * Math.min(1, -trendFrac / 0.15);
+        windowTrendActive = true;
+      } else if (trendFrac >= 0.03) {
+        windowTrendDirection = "rising";
+        windowTrendScore = 0; // urgency boosted below instead
+        windowTrendActive = true;
+      } else {
+        windowTrendDirection = "stable";
+        windowTrendScore = 5;
+        windowTrendActive = true;
+      }
+    }
+  }
+
   // ---------- Compose quality score with graceful degradation ----------
   const signalDefs = [
     { key: "dowPercentile", value: dowScore, max: 30, active: dowActive },
@@ -144,6 +311,7 @@ function analyze({
     { key: "dtdFloor", value: dtdFloorScore, max: 20, active: dtdFloorActive },
     { key: "siblingIndependence", value: siblingScore, max: 15, active: siblingActive },
     { key: "absoluteFloor", value: absFloorScore, max: 10, active: absFloorActive },
+    { key: "windowTrend", value: windowTrendScore, max: 10, active: windowTrendActive },
   ];
 
   const activeMax = signalDefs
@@ -195,6 +363,16 @@ function analyze({
     }
   }
 
+  // Bucket transition — moving up a bucket signals escalating price tier.
+  if (bucketTransition === "up") urgencyScore += 2;
+
+  // Rising fare window — broad upward pressure across the window.
+  if (windowTrendDirection === "rising" && windowTrendPct !== null) {
+    if (windowTrendPct >= 20) urgencyScore += 3;
+    else if (windowTrendPct >= 10) urgencyScore += 2;
+    else if (windowTrendPct >= 3) urgencyScore += 1;
+  }
+
   let urgency = "low";
   if (urgencyScore >= 7) urgency = "high";
   else if (urgencyScore >= 4) urgency = "medium";
@@ -204,12 +382,19 @@ function analyze({
 
   // ---------- Confidence ----------
   const historyDays = calcHistorySpanDays(validHistory);
-  const windowPriced = window.length;
+  // Use the richer dataset for the window-coverage count.
+  const windowPriced = histWindow.length;
   const numBuckets = buckets.length;
   let confidence = "low";
   if (historyDays >= 21 && windowPriced >= 12 && numBuckets >= 3) {
     confidence = "high";
   } else if (historyDays >= 7 && windowPriced >= 8 && numBuckets >= 2) {
+    confidence = "medium";
+  }
+  // Historical depth (number of distinct observation days) can promote
+  // confidence one level beyond what history span + window size alone support.
+  if (distinctObsDays >= 5 && confidence === "medium") confidence = "high";
+  if (distinctObsDays >= 3 && confidence === "low" && windowPriced >= 6) {
     confidence = "medium";
   }
 
@@ -241,6 +426,11 @@ function analyze({
       );
     }
   }
+  if (bucketTransition === "up") {
+    reasons.push("moved up a fare bucket since last observation — price escalating");
+  } else if (bucketTransition === "down") {
+    reasons.push("dropped to a lower fare bucket since last observation");
+  }
   if (dtdFloorActive && dtdFloorScore >= 16) {
     reasons.push("at or near the best price seen at this booking stage");
   } else if (dtdFloorActive && dtdFloorScore <= 4) {
@@ -261,6 +451,17 @@ function analyze({
   }
   if (bucketCeilingWarning) {
     reasons.push("near top of current bucket — jump imminent if this fares out");
+  }
+  if (windowTrendActive) {
+    if (windowTrendDirection === "dropping") {
+      reasons.push(
+        `fare window trending down ${Math.abs(windowTrendPct)}% — prices softening`
+      );
+    } else if (windowTrendDirection === "rising") {
+      reasons.push(
+        `fare window trending up ${windowTrendPct}% — broader price pressure`
+      );
+    }
   }
 
   const signals = Object.fromEntries(
@@ -284,6 +485,7 @@ function analyze({
     signals,
     siblingSuggestion,
     bucketCeilingWarning,
+    bucketTransition,
     buckets: buckets.map((b) => ({
       min: Math.min(...b),
       max: Math.max(...b),
@@ -294,6 +496,9 @@ function analyze({
       sevenDayChange !== null ? Math.round(sevenDayChange * 1000) / 10 : null,
     dtdFloor,
     absoluteMin,
+    windowTrendDirection,
+    windowTrendPct,
+    distinctObsDays,
     reasons,
   };
 }

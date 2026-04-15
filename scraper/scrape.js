@@ -9,6 +9,7 @@ const DEBUG_DIR = path.join(__dirname, "..", "debug");
 const HEURISTIC_LOG_PATH = path.join(DEBUG_DIR, "heuristic-log.jsonl");
 const HEURISTIC_STATE_PATH = path.join(DATA_DIR, "heuristic-state.json");
 const WINDOW_CACHE_PATH = path.join(DATA_DIR, "window-cache.json");
+const ANALYSIS_PATH = path.join(DATA_DIR, "analysis.json");
 
 function buildUrl(from, to, date) {
   return `https://www.wizzair.com/en-gb/booking/select-flight/${from}/${to}/${date}/null/1/0/0/null`;
@@ -543,6 +544,7 @@ async function main() {
 
   const heuristicState = loadHeuristicState();
   const windowCache = loadWindowCache();
+  const analysisResults = {}; // id → analysis (collected for analysis.json)
 
   results.sort((a, b) => a.flight.date.localeCompare(b.flight.date));
 
@@ -606,6 +608,7 @@ async function main() {
           currentPrice: result.price,
           currency: result.currency,
           windowEntries: latestWindowEntries(windowCache[id] || []),
+          historicalWindowEntries: windowCache[id] || [],
           history: previousEntries,
           calculateRealPrice,
         });
@@ -644,6 +647,13 @@ async function main() {
           );
         }
 
+        analysisResults[id] = {
+          flight,
+          price: result.price,
+          currency: result.currency,
+          analysis,
+        };
+
         heuristicState[id] = {
           lastTier: analysis.tier,
           lastPrice: result.price,
@@ -655,6 +665,40 @@ async function main() {
 
   saveHeuristicState(heuristicState);
   saveWindowCache(windowCache);
+
+  // Write analysis.json — latest heuristic result per flight for the frontend.
+  const analysisOutput = {};
+  for (const [id, { flight, price, currency, analysis }] of Object.entries(analysisResults)) {
+    const allPrices = (data[id] || []).filter((e) => e.price !== null).map((e) => e.price);
+    const allTimeMin = allPrices.length > 0 ? Math.min(...allPrices) : null;
+    analysisOutput[id] = {
+      tier: analysis.tier,
+      quality: analysis.quality,
+      urgency: analysis.urgency,
+      urgencyScore: analysis.urgencyScore,
+      confidence: analysis.confidence,
+      currentPrice: price,
+      currency,
+      allTimeMin,
+      daysToDeparture: analysis.daysToDeparture,
+      sevenDayChangePct: analysis.sevenDayChangePct,
+      dtdFloor: analysis.dtdFloor,
+      absoluteMin: analysis.absoluteMin,
+      bucketTransition: analysis.bucketTransition,
+      windowTrendDirection: analysis.windowTrendDirection,
+      windowTrendPct: analysis.windowTrendPct,
+      distinctObsDays: analysis.distinctObsDays,
+      signals: analysis.signals,
+      reasons: analysis.reasons,
+      siblingSuggestion: analysis.siblingSuggestion,
+      bucketCeilingWarning: analysis.bucketCeilingWarning,
+      buckets: analysis.buckets,
+      currentBucketIndex: analysis.currentBucketIndex,
+      timestamp: new Date().toISOString(),
+    };
+  }
+  fs.writeFileSync(ANALYSIS_PATH, JSON.stringify(analysisOutput, null, 2));
+  console.log(`Analysis written to analysis.json`);
 
   fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
   console.log(`\nData written to prices.json`);

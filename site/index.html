@@ -26,9 +26,7 @@
     }
 
     /* Header */
-    header {
-      margin-bottom: 1.75rem;
-    }
+    header { margin-bottom: 1.75rem; }
 
     header h1 {
       font-size: 1.375rem;
@@ -45,10 +43,7 @@
       flex-wrap: wrap;
     }
 
-    .header-subtitle {
-      color: #64748b;
-      font-size: 0.8125rem;
-    }
+    .header-subtitle { color: #64748b; font-size: 0.8125rem; }
 
     #last-updated {
       color: #94a3b8;
@@ -88,12 +83,7 @@
       box-shadow: 0 0 0 3px rgba(59,130,246,0.07);
     }
 
-    .indicator {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
+    .indicator { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .indicator.green { background: #22c55e; }
     .indicator.amber { background: #f59e0b; }
     .indicator.red   { background: #ef4444; }
@@ -108,11 +98,7 @@
       white-space: nowrap;
     }
 
-    .flight-range {
-      display: flex;
-      gap: 1.125rem;
-      flex-shrink: 0;
-    }
+    .flight-range { display: flex; gap: 1.125rem; flex-shrink: 0; }
 
     .range-item {
       display: flex;
@@ -127,7 +113,6 @@
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: #cbd5e1;
-      font-family: 'Inter', sans-serif;
     }
 
     .range-item .range-value {
@@ -147,6 +132,222 @@
       border-radius: 6px;
       white-space: nowrap;
       flex-shrink: 0;
+    }
+
+    /* ---- Heuristic card ---- */
+    .heuristic-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 1.125rem 1.25rem 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .hcard-top {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+
+    .tier-badge {
+      font-size: 0.8125rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      white-space: nowrap;
+      text-transform: uppercase;
+    }
+    .tier-buy  { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .tier-good { background: #dbeafe; color: #1d4ed8; border: 1px solid #93c5fd; }
+    .tier-hold { background: #fef9c3; color: #a16207; border: 1px solid #fde047; }
+    .tier-skip { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
+
+    .hcard-price-block {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .hcard-price {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .alltime-badge {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #15803d;
+      background: #dcfce7;
+      border: 1px solid #86efac;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+    }
+
+    /* Quality bar */
+    .hcard-metrics {
+      display: flex;
+      flex-direction: column;
+      gap: 0.625rem;
+      margin-bottom: 0.875rem;
+    }
+
+    .hmetric {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .hmetric-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: #94a3b8;
+      width: 72px;
+      flex-shrink: 0;
+    }
+
+    .quality-bar-wrap {
+      flex: 1;
+      max-width: 200px;
+      height: 6px;
+      background: #f1f5f9;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .quality-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+
+    .hmetric-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: #475569;
+      min-width: 48px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+    }
+    .pill-high   { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
+    .pill-medium { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
+    .pill-low    { background: #f0fdf4; color: #166534; border: 1px solid #86efac; }
+    .pill-conf-high   { background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; }
+    .pill-conf-medium { background: #faf5ff; color: #7e22ce; border: 1px solid #d8b4fe; }
+    .pill-conf-low    { background: #f8fafc; color: #64748b; border: 1px solid #cbd5e1; }
+
+    /* Reasons */
+    .hcard-reasons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.375rem;
+      margin-bottom: 0.875rem;
+    }
+
+    .reason-chip {
+      font-size: 0.6875rem;
+      color: #475569;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      padding: 0.2rem 0.5rem;
+      line-height: 1.4;
+    }
+
+    /* Signal toggle */
+    .signal-toggle {
+      background: none;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      color: #64748b;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 0.3rem 0.75rem;
+      cursor: pointer;
+      transition: border-color 0.12s, color 0.12s;
+      margin-bottom: 0.75rem;
+    }
+    .signal-toggle:hover { border-color: #93c5fd; color: #2563eb; }
+
+    /* Signal breakdown table */
+    .hcard-signals {
+      border: 1px solid #f1f5f9;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 0.875rem;
+    }
+
+    .signal-row {
+      display: grid;
+      grid-template-columns: 140px 1fr auto;
+      gap: 0.75rem;
+      align-items: center;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid #f8fafc;
+    }
+    .signal-row:last-child { border-bottom: none; }
+    .signal-row.inactive { opacity: 0.45; }
+
+    .sig-name {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    .sig-desc {
+      font-size: 0.6875rem;
+      color: #94a3b8;
+      line-height: 1.4;
+    }
+
+    .sig-score-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      justify-content: flex-end;
+    }
+
+    .sig-bar-wrap {
+      width: 60px;
+      height: 4px;
+      background: #f1f5f9;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .sig-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: #3b82f6;
+    }
+
+    .sig-score-text {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6875rem;
+      color: #94a3b8;
+      white-space: nowrap;
+    }
+
+    .hcard-updated {
+      font-size: 0.6875rem;
+      color: #94a3b8;
+      font-family: 'JetBrains Mono', monospace;
     }
 
     /* Chart section */
@@ -184,18 +385,10 @@
       outline: none;
       transition: border-color 0.12s;
     }
-
-    .selector select:focus {
-      border-color: #93c5fd;
-    }
+    .selector select:focus { border-color: #93c5fd; }
 
     /* Empty state */
-    .empty-state {
-      text-align: center;
-      padding: 4rem 2rem;
-      color: #94a3b8;
-    }
-
+    .empty-state { text-align: center; padding: 4rem 2rem; color: #94a3b8; }
     .empty-state p {
       max-width: 380px;
       margin: 0 auto;
@@ -211,21 +404,17 @@
       padding-top: 1.25rem;
       border-top: 1px solid #e2e8f0;
     }
-
-    footer a {
-      color: #3b82f6;
-      text-decoration: none;
-    }
-
-    footer a:hover {
-      text-decoration: underline;
-    }
+    footer a { color: #3b82f6; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
 
     @media (max-width: 600px) {
       header h1 { font-size: 1.125rem; }
       .flight-range { display: none; }
       .flight-item { padding: 0.75rem 0.875rem; }
       .container { padding: 1rem; }
+      .hcard-top { gap: 0.625rem; }
+      .hcard-price { font-size: 1rem; }
+      .signal-row { grid-template-columns: 110px 1fr auto; }
     }
   </style>
 </head>
@@ -240,6 +429,37 @@
     </header>
 
     <div id="flight-list" class="flight-list"></div>
+
+    <div id="heuristic-card" class="heuristic-card" style="display:none;">
+      <div class="hcard-top">
+        <span id="hcard-tier" class="tier-badge"></span>
+        <div class="hcard-price-block">
+          <span id="hcard-price" class="hcard-price"></span>
+          <span id="hcard-alltime" class="alltime-badge" style="display:none;">all-time low</span>
+        </div>
+      </div>
+      <div class="hcard-metrics">
+        <div class="hmetric">
+          <span class="hmetric-label">Quality</span>
+          <div class="quality-bar-wrap">
+            <div id="hcard-quality-bar" class="quality-bar-fill" style="width:0%"></div>
+          </div>
+          <span id="hcard-quality-val" class="hmetric-val"></span>
+        </div>
+        <div class="hmetric">
+          <span class="hmetric-label">Urgency</span>
+          <span id="hcard-urgency" class="pill"></span>
+        </div>
+        <div class="hmetric">
+          <span class="hmetric-label">Confidence</span>
+          <span id="hcard-confidence" class="pill"></span>
+        </div>
+      </div>
+      <div id="hcard-reasons" class="hcard-reasons"></div>
+      <button class="signal-toggle" id="hcard-toggle" onclick="toggleSignals()">Show signals ▾</button>
+      <div id="hcard-signals" class="hcard-signals" style="display:none;"></div>
+      <div id="hcard-updated" class="hcard-updated"></div>
+    </div>
 
     <div id="chart-section" class="chart-section" style="display:none;">
       <div class="chart-header">
@@ -260,8 +480,17 @@
 
   <script>
     let chart = null;
+    let signalsVisible = false;
 
-    // Format id like "buh-dbv-2026-07-17" → "BUH → DBV · Jul 17"
+    const SIGNAL_META = {
+      dowPercentile:     { name: 'Day-of-week',       desc: 'Price vs same weekday in the fare window' },
+      bucketPosition:    { name: 'Fare bucket',        desc: 'Position in detected price tier ladder (1 = cheapest)' },
+      dtdFloor:          { name: 'Booking-stage',      desc: 'vs cheapest observed at this days-to-departure' },
+      siblingIndependence:{ name: 'Nearby dates',      desc: 'Whether adjacent dates are cheaper than this one' },
+      absoluteFloor:     { name: 'All-time low',       desc: 'Proximity to historical minimum price' },
+      windowTrend:       { name: 'Window trend',       desc: 'Direction of surrounding fare prices over time' },
+    };
+
     function formatFlightId(id) {
       const parts = id.split('-');
       if (parts.length >= 4) {
@@ -275,7 +504,6 @@
       return id;
     }
 
-    // Sort flight ids by date
     function sortedFlightIds(ids) {
       return [...ids].sort((a, b) => {
         const dateValue = id => {
@@ -289,8 +517,127 @@
       });
     }
 
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function qualityColor(q) {
+      if (q >= 75) return '#22c55e';
+      if (q >= 55) return '#3b82f6';
+      if (q >= 40) return '#f59e0b';
+      return '#ef4444';
+    }
+
+    function renderHeuristicCard(id, analysisData) {
+      const card = document.getElementById('heuristic-card');
+      const a = analysisData && analysisData[id];
+      if (!a) { card.style.display = 'none'; return; }
+
+      card.style.display = 'block';
+
+      // Tier badge
+      const tierEl = document.getElementById('hcard-tier');
+      const tierMap = {
+        'BUY NOW':   'tier-buy',
+        'GOOD DEAL': 'tier-good',
+        'HOLD':      'tier-hold',
+        'SKIP':      'tier-skip',
+      };
+      tierEl.className = 'tier-badge ' + (tierMap[a.tier] || 'tier-skip');
+      tierEl.textContent = a.tier || '—';
+
+      // Price + all-time low
+      const priceEl = document.getElementById('hcard-price');
+      priceEl.textContent = a.currentPrice != null
+        ? a.currentPrice.toLocaleString() + '\u00a0' + (a.currency || '')
+        : '—';
+      const alltimeEl = document.getElementById('hcard-alltime');
+      const isAllTimeLow = a.currentPrice != null && a.allTimeMin != null
+        && a.currentPrice <= a.allTimeMin;
+      alltimeEl.style.display = isAllTimeLow ? 'inline-flex' : 'none';
+
+      // Quality bar
+      const q = a.quality ?? 0;
+      document.getElementById('hcard-quality-bar').style.width = q + '%';
+      document.getElementById('hcard-quality-bar').style.background = qualityColor(q);
+      document.getElementById('hcard-quality-val').textContent = q + ' / 100';
+
+      // Urgency pill
+      const urgEl = document.getElementById('hcard-urgency');
+      const urgClass = { high: 'pill-high', medium: 'pill-medium', low: 'pill-low' };
+      const urgIcon  = { high: '↑↑', medium: '↑', low: '—' };
+      urgEl.className = 'pill ' + (urgClass[a.urgency] || 'pill-low');
+      urgEl.textContent = (urgIcon[a.urgency] || '') + ' ' + (a.urgency || 'low').toUpperCase();
+
+      // Confidence pill
+      const confEl = document.getElementById('hcard-confidence');
+      const confClass = { high: 'pill-conf-high', medium: 'pill-conf-medium', low: 'pill-conf-low' };
+      confEl.className = 'pill ' + (confClass[a.confidence] || 'pill-conf-low');
+      confEl.textContent = (a.confidence || 'low').toUpperCase();
+
+      // Reasons chips
+      const reasonsEl = document.getElementById('hcard-reasons');
+      reasonsEl.innerHTML = '';
+      if (a.reasons && a.reasons.length > 0) {
+        for (const r of a.reasons) {
+          const chip = document.createElement('span');
+          chip.className = 'reason-chip';
+          chip.textContent = r;
+          reasonsEl.appendChild(chip);
+        }
+      }
+
+      // Signal breakdown
+      const sigsEl = document.getElementById('hcard-signals');
+      sigsEl.innerHTML = '';
+      if (a.signals) {
+        for (const [key, sig] of Object.entries(a.signals)) {
+          const meta = SIGNAL_META[key] || { name: key, desc: '' };
+          const pct = sig.max > 0 ? (sig.value / sig.max) * 100 : 0;
+          const row = document.createElement('div');
+          row.className = 'signal-row' + (sig.active ? '' : ' inactive');
+          row.innerHTML = `
+            <div>
+              <div class="sig-name">${escapeHtml(meta.name)}</div>
+            </div>
+            <div class="sig-desc">${escapeHtml(meta.desc)}${!sig.active ? ' <em>(no data)</em>' : ''}</div>
+            <div class="sig-score-wrap">
+              <div class="sig-bar-wrap">
+                <div class="sig-bar-fill" style="width:${sig.active ? pct : 0}%"></div>
+              </div>
+              <span class="sig-score-text">${sig.active ? sig.value + '\u00a0/\u00a0' + sig.max : '—'}</span>
+            </div>
+          `;
+          sigsEl.appendChild(row);
+        }
+      }
+
+      // Updated
+      const updEl = document.getElementById('hcard-updated');
+      if (a.timestamp) {
+        updEl.textContent = 'Updated ' + new Date(a.timestamp).toLocaleString();
+      } else {
+        updEl.textContent = '';
+      }
+
+      // Reset toggle state when switching flights
+      signalsVisible = false;
+      sigsEl.style.display = 'none';
+      document.getElementById('hcard-toggle').textContent = 'Show signals \u25be';
+    }
+
+    function toggleSignals() {
+      signalsVisible = !signalsVisible;
+      document.getElementById('hcard-signals').style.display = signalsVisible ? 'block' : 'none';
+      document.getElementById('hcard-toggle').textContent = signalsVisible
+        ? 'Hide signals \u25b4'
+        : 'Show signals \u25be';
+    }
+
     async function init() {
-      let data;
+      let data, analysisData;
       try {
         const res = await fetch('data/prices.json');
         if (!res.ok) throw new Error('not found');
@@ -298,9 +645,14 @@
       } catch {
         data = {};
       }
+      try {
+        const res = await fetch('data/analysis.json');
+        analysisData = res.ok ? await res.json() : {};
+      } catch {
+        analysisData = {};
+      }
 
       const rawIds = Object.keys(data).filter(id => data[id].length > 0);
-
       if (rawIds.length === 0) {
         document.getElementById('empty-state').style.display = 'block';
         return;
@@ -310,7 +662,9 @@
 
       // Last updated (global)
       const allEntries = flightIds.flatMap(id => data[id]);
-      const lastTimestamp = allEntries.reduce((latest, e) => e.timestamp > latest ? e.timestamp : latest, '');
+      const lastTimestamp = allEntries.reduce(
+        (latest, e) => e.timestamp > latest ? e.timestamp : latest, ''
+      );
       if (lastTimestamp) {
         document.getElementById('last-updated').textContent =
           'Updated ' + new Date(lastTimestamp).toLocaleString();
@@ -325,7 +679,6 @@
         const prices = entries.filter(e => e.price !== null).map(e => e.price);
         const currency = entries.find(e => e.currency)?.currency || 'RON';
         const latestPrice = entries[entries.length - 1].price;
-
         const min = prices.length ? Math.min(...prices) : null;
         const max = prices.length ? Math.max(...prices) : null;
 
@@ -359,6 +712,7 @@
 
         item.addEventListener('click', () => {
           setActiveItem(id);
+          renderHeuristicCard(id, analysisData);
           renderChart(data, id, cardData);
           const sel = document.getElementById('flight-select');
           if (sel) sel.value = id;
@@ -380,12 +734,14 @@
         document.getElementById('selector-container').style.display = 'block';
         select.addEventListener('change', () => {
           setActiveItem(select.value);
+          renderHeuristicCard(select.value, analysisData);
           renderChart(data, select.value, cardData);
         });
       }
 
       document.getElementById('chart-section').style.display = 'block';
       setActiveItem(flightIds[0]);
+      renderHeuristicCard(flightIds[0], analysisData);
       renderChart(data, flightIds[0], cardData);
     }
 
@@ -496,12 +852,6 @@
           }
         }
       });
-    }
-
-    function escapeHtml(str) {
-      const div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
     }
 
     init();
