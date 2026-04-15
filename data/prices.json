@@ -461,6 +461,12 @@
       "price": 789,
       "currency": "RON",
       "raw": "789 RON"
+    },
+    {
+      "timestamp": "2026-04-15T23:33:23.733Z",
+      "price": 789,
+      "currency": "RON",
+      "raw": "789 RON"
     }
   ],
   "otp-ory-2026-05-29": [
@@ -925,6 +931,12 @@
       "price": 719,
       "currency": "RON",
       "raw": "719 RON"
+    },
+    {
+      "timestamp": "2026-04-15T23:33:23.726Z",
+      "price": 719,
+      "currency": "RON",
+      "raw": "719 RON"
     }
   ],
   "otp-ory-2026-05-31": [
@@ -1386,6 +1398,12 @@
     },
     {
       "timestamp": "2026-04-15T22:32:45.051Z",
+      "price": 369,
+      "currency": "RON",
+      "raw": "369 RON"
+    },
+    {
+      "timestamp": "2026-04-15T23:33:23.736Z",
       "price": 369,
       "currency": "RON",
       "raw": "369 RON"
