@@ -2,16 +2,16 @@
   "otp-ory-2026-05-30": {
     "lastTier": "SKIP",
     "lastPrice": 789,
-    "lastTimestamp": "2026-04-15T21:41:39.291Z"
+    "lastTimestamp": "2026-04-15T21:42:57.988Z"
   },
   "otp-ory-2026-05-29": {
     "lastTier": "SKIP",
     "lastPrice": 719,
-    "lastTimestamp": "2026-04-15T21:41:39.286Z"
+    "lastTimestamp": "2026-04-15T21:42:57.983Z"
   },
   "otp-ory-2026-05-31": {
-    "lastTier": "BUY NOW",
+    "lastTier": "GOOD DEAL",
     "lastPrice": 369,
-    "lastTimestamp": "2026-04-15T21:41:39.294Z"
+    "lastTimestamp": "2026-04-15T21:42:57.991Z"
   }
 }

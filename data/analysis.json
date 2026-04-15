@@ -1,7 +1,7 @@
 {
   "otp-ory-2026-05-29": {
     "tier": "SKIP",
-    "quality": 25,
+    "quality": 23,
     "urgency": "high",
     "urgencyScore": 7,
     "confidence": "medium",
@@ -28,8 +28,8 @@
         "active": true
       },
       "dtdFloor": {
-        "value": 12.7,
-        "max": 20,
+        "value": 9.5,
+        "max": 15,
         "active": true
       },
       "siblingIndependence": {
@@ -108,11 +108,11 @@
       }
     ],
     "currentBucketIndex": 7,
-    "timestamp": "2026-04-15T21:41:39.307Z"
+    "timestamp": "2026-04-15T21:42:58.004Z"
   },
   "otp-ory-2026-05-30": {
     "tier": "SKIP",
-    "quality": 5,
+    "quality": 6,
     "urgency": "high",
     "urgencyScore": 8,
     "confidence": "medium",
@@ -129,7 +129,7 @@
     "distinctObsDays": 3,
     "signals": {
       "dowPercentile": {
-        "value": 0,
+        "value": 1.7,
         "max": 30,
         "active": true
       },
@@ -140,7 +140,7 @@
       },
       "dtdFloor": {
         "value": 0,
-        "max": 20,
+        "max": 15,
         "active": true
       },
       "siblingIndependence": {
@@ -220,19 +220,19 @@
       }
     ],
     "currentBucketIndex": 8,
-    "timestamp": "2026-04-15T21:41:39.307Z"
+    "timestamp": "2026-04-15T21:42:58.004Z"
   },
   "otp-ory-2026-05-31": {
-    "tier": "BUY NOW",
-    "quality": 73,
+    "tier": "GOOD DEAL",
+    "quality": 67,
     "urgency": "high",
-    "urgencyScore": 7,
+    "urgencyScore": 8,
     "confidence": "medium",
     "currentPrice": 369,
     "currency": "RON",
     "allTimeMin": 349,
     "daysToDeparture": 45,
-    "sevenDayChangePct": 0,
+    "sevenDayChangePct": 5.7,
     "dtdFloor": 349,
     "absoluteMin": 349,
     "bucketTransition": null,
@@ -241,7 +241,7 @@
     "distinctObsDays": 3,
     "signals": {
       "dowPercentile": {
-        "value": 22.9,
+        "value": 16.7,
         "max": 30,
         "active": true
       },
@@ -251,8 +251,8 @@
         "active": true
       },
       "dtdFloor": {
-        "value": 15.4,
-        "max": 20,
+        "value": 11.6,
+        "max": 15,
         "active": true
       },
       "siblingIndependence": {
@@ -325,6 +325,6 @@
       }
     ],
     "currentBucketIndex": 2,
-    "timestamp": "2026-04-15T21:41:39.307Z"
+    "timestamp": "2026-04-15T21:42:58.004Z"
   }
 }
