@@ -48,11 +48,13 @@ async function findUserByEmail(email) {
   return match || null;
 }
 
-async function supabaseInsertBatch(table, rows, { upsert = false } = {}) {
+async function supabaseInsertBatch(table, rows, { upsert = false, onConflict } = {}) {
   const prefer = upsert
     ? "resolution=merge-duplicates,return=minimal"
     : "return=minimal";
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+  let url = `${SUPABASE_URL}/rest/v1/${table}`;
+  if (upsert && onConflict) url += `?on_conflict=${onConflict}`;
+  const res = await fetch(url, {
     method: "POST",
     headers: headers({ Prefer: prefer }),
     body: JSON.stringify(rows),
@@ -118,7 +120,7 @@ async function main() {
     date: f.date,
     time: f.time || null,
   }));
-  await supabaseInsertBatch("tracked_flights", flightRows, { upsert: true });
+  await supabaseInsertBatch("tracked_flights", flightRows, { upsert: true, onConflict: "user_id,origin,destination,date" });
   console.log(`  Done: ${flightRows.length} flight(s) upserted.\n`);
 
   // 4. Migrate price_history
@@ -131,13 +133,15 @@ async function main() {
       continue;
     }
 
-    const rows = entries.map((e) => ({
-      flight_key: fKey,
-      timestamp: e.timestamp,
-      price: e.price,
-      currency: e.currency || "RON",
-      raw: e.raw ? { raw: e.raw } : null,
-    }));
+    const rows = entries
+      .filter((e) => e.price != null)
+      .map((e) => ({
+        flight_key: fKey,
+        timestamp: e.timestamp,
+        price: e.price,
+        currency: e.currency || "RON",
+        raw: e.raw ? { raw: e.raw } : null,
+      }));
 
     // Insert in batches of 500
     for (let i = 0; i < rows.length; i += 500) {

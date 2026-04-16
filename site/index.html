@@ -1145,13 +1145,14 @@
         currentUser = session.user;
         document.getElementById('user-email').textContent = currentUser.email || '';
         showApp();
-        loadFlights();
+        await loadFlights();
       } else {
         showLogin();
       }
 
-      // Listen for auth changes
+      // Listen for auth changes (skip INITIAL_SESSION since we handled it above)
       sb.auth.onAuthStateChange((event, session) => {
+        if (event === 'INITIAL_SESSION') return;
         if (session) {
           currentUser = session.user;
           document.getElementById('user-email').textContent = currentUser.email || '';
