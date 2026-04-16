@@ -16,6 +16,8 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_REPOSITORY: ${{ github.repository }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,12 +29,12 @@ jobs:
       - name: Run scraper
         working-directory: scraper
         run: node scrape.js
-      - name: Commit data
+      - name: Commit debug files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/ debug/
-          git diff --staged --quiet || git commit -m "price update $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git add debug/
+          git diff --staged --quiet || git commit -m "debug update $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           git push
 
   deploy:
@@ -45,13 +47,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
-      - name: Pull latest data
+      - name: Pull latest
         run: git pull
       - name: Prepare deploy folder
         run: |
           mkdir _deploy
           cp site/* _deploy/
-          cp -r data _deploy/data
+          sed -i "s|__SUPABASE_URL_PLACEHOLDER__|${SUPABASE_URL}|g" _deploy/index.html
+          sed -i "s|__SUPABASE_ANON_KEY_PLACEHOLDER__|${SUPABASE_PUBLISHABLE_KEY}|g" _deploy/index.html
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _deploy

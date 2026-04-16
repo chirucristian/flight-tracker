@@ -2,25 +2,64 @@ const fs = require("fs");
 const path = require("path");
 const { analyze } = require("./analyze");
 
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
+
 const FLIGHTS_PATH = path.join(__dirname, "flights.json");
-const DATA_PATH = path.join(__dirname, "..", "data", "prices.json");
-const DATA_DIR = path.join(__dirname, "..", "data");
 const DEBUG_DIR = path.join(__dirname, "..", "debug");
 const HEURISTIC_LOG_PATH = path.join(DEBUG_DIR, "heuristic-log.jsonl");
-const HEURISTIC_STATE_PATH = path.join(DATA_DIR, "heuristic-state.json");
-const WINDOW_CACHE_PATH = path.join(DATA_DIR, "window-cache.json");
-const ANALYSIS_PATH = path.join(DATA_DIR, "analysis.json");
+
+// ---- Supabase REST helpers ----
+
+function supabaseHeaders() {
+  return {
+    apikey: SUPABASE_SECRET_KEY,
+    Authorization: `Bearer ${SUPABASE_SECRET_KEY}`,
+    "Content-Type": "application/json",
+  };
+}
+
+async function supabaseGet(table, query = "") {
+  const url = `${SUPABASE_URL}/rest/v1/${table}?${query}`;
+  const res = await fetch(url, { headers: supabaseHeaders() });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Supabase GET ${table} failed: ${res.status} ${text}`);
+  }
+  return res.json();
+}
+
+async function supabaseInsert(table, rows, { upsert = false } = {}) {
+  const prefer = upsert
+    ? "resolution=merge-duplicates,return=minimal"
+    : "return=minimal";
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    method: "POST",
+    headers: { ...supabaseHeaders(), Prefer: prefer },
+    body: JSON.stringify(rows),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Supabase POST ${table} failed: ${res.status} ${text}`);
+  }
+}
+
+// ---- Flight helpers ----
 
 function buildUrl(from, to, date) {
   return `https://www.wizzair.com/en-gb/booking/select-flight/${from}/${to}/${date}/null/1/0/0/null`;
 }
 
+function flightKey(f) {
+  return `${f.origin}-${f.destination}-${f.date}`.toUpperCase();
+}
+
 function flightId(f) {
-  return `${f.from}-${f.to}-${f.date}`.toLowerCase();
+  return `${f.origin}-${f.destination}-${f.date}`.toLowerCase();
 }
 
 function flightLabel(f) {
-  return `${f.from} → ${f.to} · ${f.date} · ${f.time}`;
+  return `${f.origin} → ${f.destination} · ${f.date}${f.time ? " · " + f.time : ""}`;
 }
 
 function calculateRealPrice(chartPrice) {
@@ -41,8 +80,8 @@ function addDays(dateStr, days) {
   return d.toISOString().substring(0, 10);
 }
 
-// Single farechart API call centered at `centerDate`. With dayInterval=10,
-// the response covers [centerDate-10, centerDate+10] (21 days).
+// ---- Fare chart fetching (unchanged logic) ----
+
 async function fetchFareChartBlock(apiUrl, flight, centerDate, debugSuffix) {
   const id = flightId(flight);
   const url = `${apiUrl}/Api/asset/farechart`;
@@ -55,8 +94,8 @@ async function fetchFareChartBlock(apiUrl, flight, centerDate, debugSuffix) {
     isFlightChange: false,
     flightList: [
       {
-        departureStation: flight.from,
-        arrivalStation: flight.to,
+        departureStation: flight.origin,
+        arrivalStation: flight.destination,
         date: `${centerDate}T00:00:00`,
       },
     ],
@@ -101,7 +140,6 @@ async function fetchFareChartBlock(apiUrl, flight, centerDate, debugSuffix) {
   return { ok: true, flights };
 }
 
-// Extract the matched price for the flight's target date from a list of entries.
 function extractTargetMatch(flight, entries) {
   for (const entry of entries) {
     const entryDate = (entry.date || "").substring(0, 10);
@@ -122,10 +160,6 @@ function extractTargetMatch(flight, entries) {
   return { price: null, currency: null, raw: null };
 }
 
-// Fetch a ~61-day window covering [target-30, target+30] via 3 API calls
-// with dayInterval=10 centered at target-20, target, target+20.
-// The primary (center=target) call is authoritative for the target-date price;
-// before/after calls are best-effort and only extend the analysis window.
 async function fetchFareChart(apiUrl, flight) {
   const id = flightId(flight);
   const label = flightLabel(flight);
@@ -139,36 +173,23 @@ async function fetchFareChart(apiUrl, flight) {
   const beforeCenter = addDays(targetDate, -20);
   const afterCenter = addDays(targetDate, 20);
 
-  // Primary call — required for the target-date price.
   const primary = await fetchFareChartBlock(apiUrl, flight, targetDate, "");
 
-  // Extended calls — best effort.
   let beforeEntries = [];
   let afterEntries = [];
   try {
-    const before = await fetchFareChartBlock(
-      apiUrl,
-      flight,
-      beforeCenter,
-      "-before"
-    );
+    const before = await fetchFareChartBlock(apiUrl, flight, beforeCenter, "-before");
     beforeEntries = before.flights;
   } catch (err) {
     console.warn(`  Before-window fetch threw: ${err.message}`);
   }
   try {
-    const after = await fetchFareChartBlock(
-      apiUrl,
-      flight,
-      afterCenter,
-      "-after"
-    );
+    const after = await fetchFareChartBlock(apiUrl, flight, afterCenter, "-after");
     afterEntries = after.flights;
   } catch (err) {
     console.warn(`  After-window fetch threw: ${err.message}`);
   }
 
-  // Merge by date (dedupe; primary wins on overlapping seams), then sort.
   const seen = new Map();
   for (const entry of [...beforeEntries, ...primary.flights, ...afterEntries]) {
     const d = (entry.date || "").substring(0, 10);
@@ -191,6 +212,8 @@ async function fetchFareChart(apiUrl, flight) {
   return { ...match, windowEntries: merged };
 }
 
+// ---- GitHub Issues (unchanged) ----
+
 async function createScrapeFailureIssue(flight) {
   const token = process.env.GITHUB_TOKEN;
   const repo = process.env.GITHUB_REPOSITORY;
@@ -201,7 +224,7 @@ async function createScrapeFailureIssue(flight) {
 
   const id = flightId(flight);
   const label = flightLabel(flight);
-  const url = buildUrl(flight.from, flight.to, flight.date);
+  const url = buildUrl(flight.origin, flight.destination, flight.date);
   const title = `Scrape failed: ${label}`;
   const body = [
     `## Scrape Failure`,
@@ -231,9 +254,7 @@ async function createScrapeFailureIssue(flight) {
       console.log(`  Failure issue created: #${issue.number}`);
     } else {
       const text = await res.text();
-      console.error(
-        `  Failed to create failure issue: ${res.status} ${text}`
-      );
+      console.error(`  Failed to create failure issue: ${res.status} ${text}`);
     }
   } catch (err) {
     console.error(`  Error creating failure issue: ${err.message}`);
@@ -249,7 +270,7 @@ async function createGitHubIssue(flight, newPrice, currency, previousLow, chartU
   }
 
   const label = flightLabel(flight);
-  const url = buildUrl(flight.from, flight.to, flight.date);
+  const url = buildUrl(flight.origin, flight.destination, flight.date);
   const drop = previousLow
     ? (((previousLow - newPrice) / previousLow) * 100).toFixed(1)
     : null;
@@ -303,7 +324,7 @@ async function createBuyRecommendationIssue(flight, price, currency, analysis, c
   }
 
   const label = flightLabel(flight);
-  const url = buildUrl(flight.from, flight.to, flight.date);
+  const url = buildUrl(flight.origin, flight.destination, flight.date);
 
   const signalRows = Object.entries(analysis.signals)
     .map(([key, s]) =>
@@ -404,6 +425,8 @@ async function createBuyRecommendationIssue(flight, price, currency, analysis, c
   }
 }
 
+// ---- Heuristic log (local debug file — kept as-is) ----
+
 function appendHeuristicLog(flight, price, currency, analysis) {
   const entry = {
     timestamp: new Date().toISOString(),
@@ -430,36 +453,8 @@ function appendHeuristicLog(flight, price, currency, analysis) {
   fs.appendFileSync(HEURISTIC_LOG_PATH, JSON.stringify(entry) + "\n");
 }
 
-function loadHeuristicState() {
-  try {
-    const raw = fs.readFileSync(HEURISTIC_STATE_PATH, "utf-8");
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
+// ---- Window cache helpers (same merge logic, now backed by Supabase) ----
 
-function saveHeuristicState(state) {
-  fs.writeFileSync(HEURISTIC_STATE_PATH, JSON.stringify(state, null, 2));
-}
-
-function loadWindowCache() {
-  try {
-    const raw = fs.readFileSync(WINDOW_CACHE_PATH, "utf-8");
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveWindowCache(cache) {
-  fs.writeFileSync(WINDOW_CACHE_PATH, JSON.stringify(cache, null, 2));
-}
-
-// Append new farechart entries to the cache for a flight, tagging each with
-// today's date so we know when it was observed.
 function mergeWindowEntries(existing, newEntries, observedAt) {
   const toAdd = newEntries
     .filter((e) => e && e.priceType === "price" && e.price?.amount > 0)
@@ -467,9 +462,6 @@ function mergeWindowEntries(existing, newEntries, observedAt) {
   return [...existing, ...toAdd];
 }
 
-// For each calendar date, return only the most recently observed entry.
-// This is what gets passed to analyze() so sibling and bucket signals
-// reflect the latest known prices, not stale historical observations.
 function latestWindowEntries(entries) {
   const latest = new Map();
   for (const e of entries) {
@@ -482,48 +474,179 @@ function latestWindowEntries(entries) {
   return Array.from(latest.values());
 }
 
+// ---- Supabase data access ----
+
+async function loadFlightsFromSupabase() {
+  try {
+    const rows = await supabaseGet(
+      "tracked_flights",
+      "select=origin,destination,date,time"
+    );
+    // Deduplicate across users
+    const seen = new Set();
+    const flights = [];
+    for (const r of rows) {
+      const key = `${r.origin}-${r.destination}-${r.date}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        flights.push({
+          origin: r.origin,
+          destination: r.destination,
+          date: r.date,
+          time: r.time || "",
+        });
+      }
+    }
+    return flights;
+  } catch (err) {
+    console.error(`Failed to load flights from Supabase: ${err.message}`);
+    return null;
+  }
+}
+
+async function loadPriceHistory(fKey) {
+  try {
+    const rows = await supabaseGet(
+      "price_history",
+      `select=timestamp,price,currency,raw&flight_key=eq.${encodeURIComponent(fKey)}&order=timestamp.asc`
+    );
+    return rows.map((r) => ({
+      timestamp: r.timestamp,
+      price: r.price != null ? Number(r.price) : null,
+      currency: r.currency,
+      raw: r.raw,
+    }));
+  } catch (err) {
+    console.error(`Failed to load price_history for ${fKey}: ${err.message}`);
+    return [];
+  }
+}
+
+async function insertPriceHistory(fKey, entry) {
+  try {
+    await supabaseInsert("price_history", {
+      flight_key: fKey,
+      timestamp: entry.timestamp,
+      price: entry.price,
+      currency: entry.currency,
+      raw: entry.raw ? { raw: entry.raw } : null,
+    });
+  } catch (err) {
+    console.error(`Failed to insert price_history for ${fKey}: ${err.message}`);
+  }
+}
+
+async function loadWindowCache(fKey) {
+  try {
+    const rows = await supabaseGet(
+      "window_cache",
+      `select=*&flight_key=eq.${encodeURIComponent(fKey)}&order=observed_at.asc`
+    );
+    // Convert DB rows back to the farechart-style entries that analyze() expects
+    return rows.map((r) => ({
+      date: r.date + "T00:00:00",
+      price: { amount: Number(r.price), currencyCode: r.currency },
+      priceType: "price",
+      observedAt: r.observed_at,
+    }));
+  } catch (err) {
+    console.error(`Failed to load window_cache for ${fKey}: ${err.message}`);
+    return [];
+  }
+}
+
+async function insertWindowCacheEntries(fKey, newEntries, observedAt) {
+  const rows = newEntries
+    .filter((e) => e && e.priceType === "price" && e.price?.amount > 0)
+    .map((e) => ({
+      flight_key: fKey,
+      date: (e.date || "").substring(0, 10),
+      price: calculateRealPrice(e.price.amount),
+      currency: e.price.currencyCode || "EUR",
+      observed_at: observedAt,
+    }));
+  if (rows.length === 0) return;
+
+  try {
+    await supabaseInsert("window_cache", rows);
+  } catch (err) {
+    console.error(`Failed to insert window_cache for ${fKey}: ${err.message}`);
+  }
+}
+
+async function loadAnalysisResult(fKey) {
+  try {
+    const rows = await supabaseGet(
+      "analysis_results",
+      `select=*&flight_key=eq.${encodeURIComponent(fKey)}`
+    );
+    if (rows.length === 0) return null;
+    return rows[0];
+  } catch (err) {
+    console.error(`Failed to load analysis_results for ${fKey}: ${err.message}`);
+    return null;
+  }
+}
+
+async function upsertAnalysisResult(fKey, data) {
+  try {
+    await supabaseInsert("analysis_results", {
+      flight_key: fKey,
+      tier: data.tier,
+      quality: data.quality,
+      urgency: data.urgency,
+      confidence: data.confidence,
+      current_price: data.currentPrice,
+      signals: data.signals,
+      reasons: data.reasons,
+      updated_at: new Date().toISOString(),
+    }, { upsert: true });
+  } catch (err) {
+    console.error(`Failed to upsert analysis_results for ${fKey}: ${err.message}`);
+  }
+}
+
+// ---- Main ----
+
 async function main() {
   console.log(`\n${"=".repeat(50)}`);
   console.log(`Flight Tracker - Wizzair Farechart API`);
   console.log(`Started: ${new Date().toISOString()}`);
   console.log(`${"=".repeat(50)}\n`);
 
-  const flights = JSON.parse(fs.readFileSync(FLIGHTS_PATH, "utf-8"));
-  console.log(`Loaded ${flights.length} flight(s) from flights.json`);
+  if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
+    console.error("SUPABASE_URL and SUPABASE_SECRET_KEY must be set.");
+    process.exit(1);
+  }
+
+  // Load flights: try Supabase first, fall back to flights.json
+  let flights = await loadFlightsFromSupabase();
+  if (!flights || flights.length === 0) {
+    console.log("No flights from Supabase — falling back to flights.json");
+    const raw = JSON.parse(fs.readFileSync(FLIGHTS_PATH, "utf-8"));
+    flights = raw.map((f) => ({
+      origin: f.from,
+      destination: f.to,
+      date: f.date,
+      time: f.time || "",
+    }));
+  } else {
+    console.log(`Loaded ${flights.length} flight(s) from Supabase (deduplicated)`);
+  }
+
   for (const f of flights) {
     console.log(`  - ${flightLabel(f)} [${flightId(f)}]`);
   }
 
-  for (const dir of [DATA_DIR, DEBUG_DIR]) {
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  }
+  if (!fs.existsSync(DEBUG_DIR)) fs.mkdirSync(DEBUG_DIR, { recursive: true });
 
-  // Clear old debug files — but preserve the heuristic log, which is
-  // append-only across runs.
+  // Clear old debug files
   for (const f of fs.readdirSync(DEBUG_DIR)) {
     if (f.startsWith("farechart-")) {
       fs.unlinkSync(path.join(DEBUG_DIR, f));
     }
   }
   console.log(`Cleared farechart-* files from debug/`);
-
-  let data = {};
-  try {
-    data = JSON.parse(fs.readFileSync(DATA_PATH, "utf-8"));
-    if (typeof data !== "object" || data === null) data = {};
-  } catch {
-    data = {};
-  }
-  console.log(`Existing price data: ${Object.keys(data).length} flight(s) tracked`);
-
-  // Remove orphaned flights no longer in flights.json
-  const activeIds = new Set(flights.map(flightId));
-  for (const key of Object.keys(data)) {
-    if (!activeIds.has(key)) {
-      console.log(`  Cleaning up orphaned key: ${key} (${data[key].length} price entries)`);
-      delete data[key];
-    }
-  }
 
   const apiUrl = getApiUrl();
 
@@ -541,20 +664,18 @@ async function main() {
   const repoName = repo.split("/")[1] || "flight-tracker";
   const chartUrl = `https://${owner}.github.io/${repoName}/`;
 
-  const heuristicState = loadHeuristicState();
-  const windowCache = loadWindowCache();
-  const analysisResults = {}; // id → analysis (collected for analysis.json)
-
   results.sort((a, b) => a.flight.date.localeCompare(b.flight.date));
 
   console.log(`\n--- Results ---`);
   for (const { flight, result } of results) {
     const id = flightId(flight);
+    const fKey = flightKey(flight);
     console.log(
       `  ${id}: ${result.price !== null ? `${result.price} ${result.currency}` : "FAILED"}`
     );
 
-    if (!data[id]) data[id] = [];
+    // Load existing price history from Supabase
+    const previousEntries = await loadPriceHistory(fKey);
 
     const entry = {
       timestamp: new Date().toISOString(),
@@ -562,8 +683,9 @@ async function main() {
       currency: result.currency,
       raw: result.raw,
     };
-    const previousEntries = data[id].slice();
-    data[id].push(entry);
+
+    // Insert new price reading
+    await insertPriceHistory(fKey, entry);
 
     if (result.price !== null) {
       const previousPrices = previousEntries
@@ -589,14 +711,21 @@ async function main() {
         );
       }
 
-      // ---- Accumulate window entries into cache ----
+      // ---- Accumulate window entries into Supabase cache ----
+      const existingWindowEntries = await loadWindowCache(fKey);
+
       if (result.windowEntries && result.windowEntries.length > 0) {
         const observedAt = new Date().toISOString().substring(0, 10);
-        windowCache[id] = mergeWindowEntries(
-          windowCache[id] || [],
+        await insertWindowCacheEntries(fKey, result.windowEntries, observedAt);
+
+        // Build the merged in-memory cache for analyze()
+        var allWindowEntries = mergeWindowEntries(
+          existingWindowEntries,
           result.windowEntries,
           observedAt
         );
+      } else {
+        var allWindowEntries = existingWindowEntries;
       }
 
       // ---- Run heuristic analysis ----
@@ -606,8 +735,8 @@ async function main() {
           flightDate: flight.date,
           currentPrice: result.price,
           currency: result.currency,
-          windowEntries: latestWindowEntries(windowCache[id] || []),
-          historicalWindowEntries: windowCache[id] || [],
+          windowEntries: latestWindowEntries(allWindowEntries),
+          historicalWindowEntries: allWindowEntries,
           history: previousEntries,
           calculateRealPrice,
         });
@@ -630,9 +759,9 @@ async function main() {
           );
         }
 
-        // Emit a BUY issue only on a fresh transition into BUY NOW — prevents
-        // hourly spam when the tier stays BUY NOW across runs.
-        const previousTier = heuristicState[id]?.lastTier || null;
+        // Check for BUY NOW transition
+        const previousAnalysis = await loadAnalysisResult(fKey);
+        const previousTier = previousAnalysis?.tier || null;
         if (analysis.tier === "BUY NOW" && previousTier !== "BUY NOW") {
           console.log(
             `  BUY NOW transition for ${id} (was ${previousTier || "none"}) — creating issue`
@@ -646,62 +775,43 @@ async function main() {
           );
         }
 
-        analysisResults[id] = {
-          flight,
-          price: result.price,
-          currency: result.currency,
-          analysis,
-        };
+        // Upsert analysis results to Supabase
+        const allPrices = [...previousEntries, entry]
+          .filter((e) => e.price !== null)
+          .map((e) => e.price);
+        const allTimeMin = allPrices.length > 0 ? Math.min(...allPrices) : null;
 
-        heuristicState[id] = {
-          lastTier: analysis.tier,
-          lastPrice: result.price,
-          lastTimestamp: entry.timestamp,
-        };
+        await upsertAnalysisResult(fKey, {
+          tier: analysis.tier,
+          quality: analysis.quality,
+          urgency: analysis.urgency,
+          confidence: analysis.confidence,
+          currentPrice: result.price,
+          signals: {
+            ...analysis.signals,
+            urgencyScore: analysis.urgencyScore,
+            allTimeMin,
+            currency: result.currency,
+            daysToDeparture: analysis.daysToDeparture,
+            sevenDayChangePct: analysis.sevenDayChangePct,
+            dtdFloor: analysis.dtdFloor,
+            absoluteMin: analysis.absoluteMin,
+            bucketTransition: analysis.bucketTransition,
+            windowTrendDirection: analysis.windowTrendDirection,
+            windowTrendPct: analysis.windowTrendPct,
+            distinctObsDays: analysis.distinctObsDays,
+            siblingSuggestion: analysis.siblingSuggestion,
+            bucketCeilingWarning: analysis.bucketCeilingWarning,
+            buckets: analysis.buckets,
+            currentBucketIndex: analysis.currentBucketIndex,
+          },
+          reasons: analysis.reasons,
+        });
       }
     }
   }
 
-  saveHeuristicState(heuristicState);
-  saveWindowCache(windowCache);
-
-  // Write analysis.json — latest heuristic result per flight for the frontend.
-  const analysisOutput = {};
-  for (const [id, { flight, price, currency, analysis }] of Object.entries(analysisResults)) {
-    const allPrices = (data[id] || []).filter((e) => e.price !== null).map((e) => e.price);
-    const allTimeMin = allPrices.length > 0 ? Math.min(...allPrices) : null;
-    analysisOutput[id] = {
-      tier: analysis.tier,
-      quality: analysis.quality,
-      urgency: analysis.urgency,
-      urgencyScore: analysis.urgencyScore,
-      confidence: analysis.confidence,
-      currentPrice: price,
-      currency,
-      allTimeMin,
-      daysToDeparture: analysis.daysToDeparture,
-      sevenDayChangePct: analysis.sevenDayChangePct,
-      dtdFloor: analysis.dtdFloor,
-      absoluteMin: analysis.absoluteMin,
-      bucketTransition: analysis.bucketTransition,
-      windowTrendDirection: analysis.windowTrendDirection,
-      windowTrendPct: analysis.windowTrendPct,
-      distinctObsDays: analysis.distinctObsDays,
-      signals: analysis.signals,
-      reasons: analysis.reasons,
-      siblingSuggestion: analysis.siblingSuggestion,
-      bucketCeilingWarning: analysis.bucketCeilingWarning,
-      buckets: analysis.buckets,
-      currentBucketIndex: analysis.currentBucketIndex,
-      timestamp: new Date().toISOString(),
-    };
-  }
-  fs.writeFileSync(ANALYSIS_PATH, JSON.stringify(analysisOutput, null, 2));
-  console.log(`Analysis written to analysis.json`);
-
-  fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
-  console.log(`\nData written to prices.json`);
-  console.log(`Finished: ${new Date().toISOString()}`);
+  console.log(`\nFinished: ${new Date().toISOString()}`);
 }
 
 main().catch((err) => {

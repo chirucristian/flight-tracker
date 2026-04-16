@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -45,10 +46,156 @@
 
     .header-subtitle { color: #64748b; font-size: 0.8125rem; }
 
-    #last-updated {
+    .header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .user-email {
       color: #94a3b8;
       font-size: 0.75rem;
       font-family: 'JetBrains Mono', monospace;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+      background: #fff;
+      color: #334155;
+    }
+    .btn:hover { border-color: #93c5fd; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+
+    .btn-primary {
+      background: #2563eb;
+      color: #fff;
+      border-color: #2563eb;
+    }
+    .btn-primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+
+    .btn-danger {
+      color: #dc2626;
+      border-color: #fecaca;
+    }
+    .btn-danger:hover { background: #fef2f2; border-color: #f87171; }
+
+    .btn-sm {
+      font-size: 0.75rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 6px;
+    }
+
+    /* Login screen */
+    .login-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      gap: 1.5rem;
+      text-align: center;
+    }
+
+    .login-screen h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .login-screen p {
+      color: #64748b;
+      font-size: 0.875rem;
+      max-width: 360px;
+      line-height: 1.6;
+    }
+
+    .google-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.625rem;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 0.65rem 1.5rem;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #334155;
+      cursor: pointer;
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+    .google-btn:hover { border-color: #93c5fd; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+    .google-btn svg { width: 18px; height: 18px; }
+
+    /* Add flight form */
+    .add-flight-form {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    .add-flight-form.open { display: block; }
+
+    .form-title {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 0.75rem;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .form-group label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #94a3b8;
+    }
+
+    .form-group input {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.8125rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 0.45rem 0.625rem;
+      color: #334155;
+      background: #f8fafc;
+      outline: none;
+      transition: border-color 0.12s;
+    }
+    .form-group input:focus { border-color: #93c5fd; }
+    .form-group input::placeholder { color: #cbd5e1; }
+
+    .form-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-end;
     }
 
     /* Flight list */
@@ -133,6 +280,20 @@
       white-space: nowrap;
       flex-shrink: 0;
     }
+
+    .delete-btn {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 1rem;
+      cursor: pointer;
+      padding: 0.25rem;
+      border-radius: 4px;
+      line-height: 1;
+      transition: color 0.12s, background 0.12s;
+      flex-shrink: 0;
+    }
+    .delete-btn:hover { color: #dc2626; background: #fef2f2; }
 
     /* ---- Heuristic card ---- */
     .heuristic-card {
@@ -304,17 +465,8 @@
     .signal-row:last-child { border-bottom: none; }
     .signal-row.inactive { opacity: 0.45; }
 
-    .sig-name {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: #475569;
-    }
-
-    .sig-desc {
-      font-size: 0.6875rem;
-      color: #94a3b8;
-      line-height: 1.4;
-    }
+    .sig-name { font-size: 0.75rem; font-weight: 600; color: #475569; }
+    .sig-desc { font-size: 0.6875rem; color: #94a3b8; line-height: 1.4; }
 
     .sig-score-wrap {
       display: flex;
@@ -367,27 +519,16 @@
       gap: 1rem;
     }
 
-    .chart-title {
-      font-size: 0.8125rem;
-      font-weight: 600;
-      color: #475569;
+    .chart-title { font-size: 0.8125rem; font-weight: 600; color: #475569; }
+
+    /* Loading / Empty states */
+    .loading-state {
+      text-align: center;
+      padding: 3rem 2rem;
+      color: #94a3b8;
+      font-size: 0.875rem;
     }
 
-    .selector select {
-      background: #f8fafc;
-      color: #334155;
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
-      padding: 0.3rem 0.625rem;
-      font-family: 'Inter', sans-serif;
-      font-size: 0.75rem;
-      cursor: pointer;
-      outline: none;
-      transition: border-color 0.12s;
-    }
-    .selector select:focus { border-color: #93c5fd; }
-
-    /* Empty state */
     .empty-state { text-align: center; padding: 4rem 2rem; color: #94a3b8; }
     .empty-state p {
       max-width: 380px;
@@ -407,6 +548,16 @@
     footer a { color: #3b82f6; text-decoration: none; }
     footer a:hover { text-decoration: underline; }
 
+    .error-msg {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      color: #b91c1c;
+      font-size: 0.8125rem;
+      margin-bottom: 1rem;
+    }
+
     @media (max-width: 600px) {
       header h1 { font-size: 1.125rem; }
       .flight-range { display: none; }
@@ -415,102 +566,173 @@
       .hcard-top { gap: 0.625rem; }
       .hcard-price { font-size: 1rem; }
       .signal-row { grid-template-columns: 110px 1fr auto; }
+      .form-row { flex-direction: column; }
+      .header-right { margin-left: 0; margin-top: 0.5rem; width: 100%; justify-content: space-between; }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>Flight Price Tracker</h1>
-      <div class="header-meta">
-        <span class="header-subtitle">Tracking Wizzair prices hourly</span>
-        <span id="last-updated"></span>
-      </div>
-    </header>
+    <!-- Login screen -->
+    <div id="login-screen" class="login-screen" style="display:none;">
+      <h2>Flight Price Tracker</h2>
+      <p>Track Wizzair flight prices, get heuristic buy recommendations, and never overpay for a flight.</p>
+      <button class="google-btn" onclick="signInWithGoogle()">
+        <svg viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+        Sign in with Google
+      </button>
+    </div>
 
-    <div id="flight-list" class="flight-list"></div>
-
-    <div id="heuristic-card" class="heuristic-card" style="display:none;">
-      <div class="hcard-top">
-        <span id="hcard-tier" class="tier-badge"></span>
-        <div class="hcard-price-block">
-          <span id="hcard-price" class="hcard-price"></span>
-          <span id="hcard-alltime" class="alltime-badge" style="display:none;">all-time low</span>
-        </div>
-      </div>
-      <div class="hcard-metrics">
-        <div class="hmetric">
-          <span class="hmetric-label">Quality</span>
-          <div class="quality-bar-wrap">
-            <div id="hcard-quality-bar" class="quality-bar-fill" style="width:0%"></div>
+    <!-- App (shown after auth) -->
+    <div id="app" style="display:none;">
+      <header>
+        <h1>Flight Price Tracker</h1>
+        <div class="header-meta">
+          <span class="header-subtitle">Tracking Wizzair prices hourly</span>
+          <div class="header-right">
+            <span id="user-email" class="user-email"></span>
+            <button class="btn btn-sm" onclick="signOut()">Sign out</button>
           </div>
-          <span id="hcard-quality-val" class="hmetric-val"></span>
         </div>
-        <div class="hmetric">
-          <span class="hmetric-label">Confidence</span>
-          <span id="hcard-confidence" class="pill"></span>
-        </div>
+      </header>
+
+      <div id="error-container"></div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+        <span style="font-size:0.8125rem;font-weight:600;color:#475569;">Your flights</span>
+        <button class="btn btn-sm btn-primary" id="add-flight-toggle" onclick="toggleAddForm()">+ Add Flight</button>
       </div>
-      <div id="hcard-reasons" class="hcard-reasons"></div>
-      <button class="signal-toggle" id="hcard-toggle" onclick="toggleSignals()">Show signals ▾</button>
-      <div id="hcard-signals" class="hcard-signals" style="display:none;"></div>
-      <div id="hcard-updated" class="hcard-updated"></div>
-    </div>
 
-    <div id="chart-section" class="chart-section" style="display:none;">
-      <div class="chart-header">
-        <span class="chart-title">Price history</span>
-        <div id="selector-container" class="selector" style="display:none;">
-          <select id="flight-select"></select>
-        </div>
+      <div id="add-flight-form" class="add-flight-form">
+        <div class="form-title">Add a new flight to track</div>
+        <form onsubmit="addFlight(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="origin">Origin</label>
+              <input type="text" id="origin" placeholder="OTP" maxlength="4" required style="width:80px;text-transform:uppercase;" />
+            </div>
+            <div class="form-group">
+              <label for="destination">Destination</label>
+              <input type="text" id="destination" placeholder="ORY" maxlength="4" required style="width:80px;text-transform:uppercase;" />
+            </div>
+            <div class="form-group">
+              <label for="flight-date">Date</label>
+              <input type="date" id="flight-date" required />
+            </div>
+            <div class="form-group">
+              <label for="flight-time">Time (opt.)</label>
+              <input type="text" id="flight-time" placeholder="06:30" style="width:80px;" />
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-sm btn-primary">Save</button>
+              <button type="button" class="btn btn-sm" onclick="toggleAddForm()">Cancel</button>
+            </div>
+          </div>
+        </form>
       </div>
-      <canvas id="price-chart"></canvas>
-    </div>
 
-    <div id="empty-state" class="empty-state" style="display:none;">
-      <p>No data yet. Go to the Actions tab on GitHub and run the workflow manually to start tracking.</p>
-    </div>
+      <div id="flight-list" class="flight-list"></div>
 
-    <footer></footer>
+      <div id="loading-state" class="loading-state" style="display:none;">Loading your flights...</div>
+
+      <div id="empty-state" class="empty-state" style="display:none;">
+        <p>Add your first flight to start tracking prices.</p>
+      </div>
+
+      <div id="heuristic-card" class="heuristic-card" style="display:none;">
+        <div class="hcard-top">
+          <span id="hcard-tier" class="tier-badge"></span>
+          <div class="hcard-price-block">
+            <span id="hcard-price" class="hcard-price"></span>
+            <span id="hcard-alltime" class="alltime-badge" style="display:none;">all-time low</span>
+          </div>
+        </div>
+        <div class="hcard-metrics">
+          <div class="hmetric">
+            <span class="hmetric-label">Quality</span>
+            <div class="quality-bar-wrap">
+              <div id="hcard-quality-bar" class="quality-bar-fill" style="width:0%"></div>
+            </div>
+            <span id="hcard-quality-val" class="hmetric-val"></span>
+          </div>
+          <div class="hmetric">
+            <span class="hmetric-label">Confidence</span>
+            <span id="hcard-confidence" class="pill"></span>
+          </div>
+        </div>
+        <div id="hcard-reasons" class="hcard-reasons"></div>
+        <button class="signal-toggle" id="hcard-toggle" onclick="toggleSignals()">Show signals &#9662;</button>
+        <div id="hcard-signals" class="hcard-signals" style="display:none;"></div>
+        <div id="hcard-updated" class="hcard-updated"></div>
+      </div>
+
+      <div id="chart-section" class="chart-section" style="display:none;">
+        <div class="chart-header">
+          <span class="chart-title">Price history</span>
+        </div>
+        <canvas id="price-chart"></canvas>
+      </div>
+
+      <footer></footer>
+    </div>
   </div>
 
   <script>
+    // Injected at deploy time by GitHub Actions (see scrape.yml)
+    const SUPABASE_URL = '__SUPABASE_URL_PLACEHOLDER__';
+    const SUPABASE_ANON_KEY = '__SUPABASE_ANON_KEY_PLACEHOLDER__';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
     let chart = null;
     let signalsVisible = false;
+    let currentUser = null;
+    let userFlights = [];
+    let selectedFlightKey = null;
 
-    const SIGNAL_META = {
-      dowPercentile:     { name: 'Day-of-week',       desc: 'Price vs same weekday in the fare window' },
-      bucketPosition:    { name: 'Fare bucket',        desc: 'Position in detected price tier ladder (1 = cheapest)' },
-      dtdFloor:          { name: 'Booking-stage',      desc: 'vs cheapest observed at this days-to-departure' },
-      siblingIndependence:{ name: 'Nearby dates',      desc: 'Whether adjacent dates are cheaper than this one' },
-      absoluteFloor:     { name: 'All-time low',       desc: 'Proximity to historical minimum price' },
-      windowTrend:       { name: 'Window trend',       desc: 'Direction of surrounding fare prices over time' },
-    };
+    // ---- Auth ----
 
-    function formatFlightId(id) {
-      const parts = id.split('-');
-      if (parts.length >= 4) {
-        const origin = parts[0].toUpperCase();
-        const dest = parts[1].toUpperCase();
-        const dateStr = parts.slice(2).join('-');
-        const d = new Date(dateStr + 'T00:00:00');
-        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        return `${origin} \u2192 ${dest} \u00b7 ${months[d.getMonth()]} ${d.getDate()}`;
-      }
-      return id;
+    async function signInWithGoogle() {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: 'https://chirucristian.github.io/flight-tracker/' }
+      });
+      if (error) showError('Sign in failed: ' + error.message);
     }
 
-    function sortedFlightIds(ids) {
-      return [...ids].sort((a, b) => {
-        const dateValue = id => {
-          const parts = id.split('-');
-          if (parts.length >= 4) {
-            return new Date(parts.slice(2).join('-') + 'T00:00:00').getTime();
-          }
-          return 0;
-        };
-        return dateValue(a) - dateValue(b);
-      });
+    async function signOut() {
+      await supabase.auth.signOut();
+      currentUser = null;
+      showLogin();
+    }
+
+    function showLogin() {
+      document.getElementById('login-screen').style.display = 'flex';
+      document.getElementById('app').style.display = 'none';
+    }
+
+    function showApp() {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+    }
+
+    function showError(msg) {
+      const container = document.getElementById('error-container');
+      if (!container) return;
+      container.innerHTML = '<div class="error-msg">' + escapeHtml(msg) + '</div>';
+      setTimeout(() => { container.innerHTML = ''; }, 6000);
+    }
+
+    // ---- Flight key helpers ----
+
+    function makeFlightKey(origin, destination, date) {
+      return (origin + '-' + destination + '-' + date).toUpperCase();
+    }
+
+    function formatFlightLabel(origin, destination, date) {
+      const d = new Date(date + 'T00:00:00');
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return origin.toUpperCase() + ' \u2192 ' + destination.toUpperCase() + ' \u00b7 ' + months[d.getMonth()] + ' ' + d.getDate();
     }
 
     function escapeHtml(str) {
@@ -526,9 +748,171 @@
       return '#ef4444';
     }
 
-    function renderHeuristicCard(id, analysisData) {
+    // ---- Add/Delete flight form ----
+
+    function toggleAddForm() {
+      const form = document.getElementById('add-flight-form');
+      form.classList.toggle('open');
+    }
+
+    async function addFlight(e) {
+      e.preventDefault();
+      if (!currentUser) return;
+
+      const origin = document.getElementById('origin').value.trim().toUpperCase();
+      const destination = document.getElementById('destination').value.trim().toUpperCase();
+      const date = document.getElementById('flight-date').value;
+      const time = document.getElementById('flight-time').value.trim();
+
+      if (!origin || !destination || !date) return;
+
+      const { error } = await supabase.from('tracked_flights').insert({
+        user_id: currentUser.id,
+        origin,
+        destination,
+        date,
+        time: time || null,
+      });
+
+      if (error) {
+        if (error.code === '23505') {
+          showError('You are already tracking this flight.');
+        } else {
+          showError('Failed to add flight: ' + error.message);
+        }
+        return;
+      }
+
+      document.getElementById('origin').value = '';
+      document.getElementById('destination').value = '';
+      document.getElementById('flight-date').value = '';
+      document.getElementById('flight-time').value = '';
+      document.getElementById('add-flight-form').classList.remove('open');
+
+      await loadFlights();
+    }
+
+    async function deleteFlight(id, e) {
+      e.stopPropagation();
+      const { error } = await supabase.from('tracked_flights').delete().eq('id', id);
+      if (error) {
+        showError('Failed to delete flight: ' + error.message);
+        return;
+      }
+      await loadFlights();
+    }
+
+    // ---- Load flights and data ----
+
+    async function loadFlights() {
+      const listEl = document.getElementById('flight-list');
+      const loadingEl = document.getElementById('loading-state');
+      const emptyEl = document.getElementById('empty-state');
+      const chartSection = document.getElementById('chart-section');
+      const hCard = document.getElementById('heuristic-card');
+
+      listEl.innerHTML = '';
+      loadingEl.style.display = 'block';
+      emptyEl.style.display = 'none';
+      chartSection.style.display = 'none';
+      hCard.style.display = 'none';
+
+      const { data: flights, error } = await supabase
+        .from('tracked_flights')
+        .select('*')
+        .order('date', { ascending: true });
+
+      loadingEl.style.display = 'none';
+
+      if (error) {
+        showError('Failed to load flights: ' + error.message);
+        return;
+      }
+
+      userFlights = flights || [];
+
+      if (userFlights.length === 0) {
+        emptyEl.style.display = 'block';
+        selectedFlightKey = null;
+        return;
+      }
+
+      // Render flight items
+      for (const f of userFlights) {
+        const fKey = makeFlightKey(f.origin, f.destination, f.date);
+        const item = document.createElement('div');
+        item.className = 'flight-item' + (fKey === selectedFlightKey ? ' active' : '');
+        item.dataset.key = fKey;
+        item.dataset.id = String(f.id);
+
+        item.innerHTML =
+          '<div class="indicator amber"></div>' +
+          '<span class="flight-label">' + escapeHtml(formatFlightLabel(f.origin, f.destination, f.date)) + '</span>' +
+          '<div class="current-badge" id="badge-' + fKey + '">...</div>' +
+          '<button class="delete-btn" title="Remove flight" onclick="deleteFlight(' + f.id + ', event)">\u00d7</button>';
+
+        item.addEventListener('click', () => selectFlight(fKey));
+        listEl.appendChild(item);
+      }
+
+      // Auto-select first flight if none selected or selected was deleted
+      const keys = userFlights.map(f => makeFlightKey(f.origin, f.destination, f.date));
+      if (!selectedFlightKey || !keys.includes(selectedFlightKey)) {
+        selectFlight(keys[0]);
+      } else {
+        selectFlight(selectedFlightKey);
+      }
+
+      // Load price badges in background
+      loadPriceBadges();
+    }
+
+    async function loadPriceBadges() {
+      for (const f of userFlights) {
+        const fKey = makeFlightKey(f.origin, f.destination, f.date);
+        const badge = document.getElementById('badge-' + fKey);
+        if (!badge) continue;
+
+        const { data: prices } = await supabase
+          .from('price_history')
+          .select('price,currency')
+          .eq('flight_key', fKey)
+          .order('timestamp', { ascending: false })
+          .limit(1);
+
+        if (prices && prices.length > 0 && prices[0].price != null) {
+          badge.textContent = Number(prices[0].price).toLocaleString() + '\u00a0' + (prices[0].currency || '');
+        } else {
+          badge.textContent = 'No data';
+          badge.style.color = '#94a3b8';
+          badge.style.background = '#f8fafc';
+          badge.style.borderColor = '#e2e8f0';
+        }
+      }
+    }
+
+    async function selectFlight(fKey) {
+      selectedFlightKey = fKey;
+
+      // Highlight active
+      document.querySelectorAll('.flight-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.key === fKey);
+      });
+
+      // Load analysis + price history in parallel
+      const [analysisResult, pricesResult] = await Promise.all([
+        supabase.from('analysis_results').select('*').eq('flight_key', fKey).maybeSingle(),
+        supabase.from('price_history').select('*').eq('flight_key', fKey).order('timestamp', { ascending: true }),
+      ]);
+
+      renderHeuristicCard(analysisResult.data);
+      renderChart(pricesResult.data || []);
+    }
+
+    // ---- Heuristic card ----
+
+    function renderHeuristicCard(a) {
       const card = document.getElementById('heuristic-card');
-      const a = analysisData && analysisData[id];
       if (!a) { card.style.display = 'none'; return; }
 
       card.style.display = 'block';
@@ -542,20 +926,24 @@
         'SKIP':      'tier-skip',
       };
       tierEl.className = 'tier-badge ' + (tierMap[a.tier] || 'tier-skip');
-      tierEl.textContent = a.tier || '—';
+      tierEl.textContent = a.tier || '\u2014';
 
       // Price + all-time low
       const priceEl = document.getElementById('hcard-price');
-      priceEl.textContent = a.currentPrice != null
-        ? a.currentPrice.toLocaleString() + '\u00a0' + (a.currency || '')
-        : '—';
+      const price = a.current_price != null ? Number(a.current_price) : null;
+      const currency = a.signals?.currency || 'RON';
+      const allTimeMin = a.signals?.allTimeMin != null ? Number(a.signals.allTimeMin) : null;
+
+      priceEl.textContent = price != null
+        ? price.toLocaleString() + '\u00a0' + currency
+        : '\u2014';
+
       const alltimeEl = document.getElementById('hcard-alltime');
-      const isAllTimeLow = a.currentPrice != null && a.allTimeMin != null
-        && a.currentPrice <= a.allTimeMin;
+      const isAllTimeLow = price != null && allTimeMin != null && price <= allTimeMin;
       alltimeEl.style.display = isAllTimeLow ? 'inline-flex' : 'none';
 
       // Quality bar
-      const q = a.quality ?? 0;
+      const q = a.quality != null ? Number(a.quality) : 0;
       document.getElementById('hcard-quality-bar').style.width = q + '%';
       document.getElementById('hcard-quality-bar').style.background = qualityColor(q);
       document.getElementById('hcard-quality-val').textContent = q + ' / 100';
@@ -569,8 +957,9 @@
       // Reasons chips
       const reasonsEl = document.getElementById('hcard-reasons');
       reasonsEl.innerHTML = '';
-      if (a.reasons && a.reasons.length > 0) {
-        for (const r of a.reasons) {
+      const reasons = a.reasons || [];
+      if (reasons.length > 0) {
+        for (const r of reasons) {
           const chip = document.createElement('span');
           chip.className = 'reason-chip';
           chip.textContent = r;
@@ -579,39 +968,44 @@
       }
 
       // Signal breakdown
+      const SIGNAL_META = {
+        dowPercentile:     { name: 'Day-of-week',       desc: 'Price vs same weekday in the fare window' },
+        bucketPosition:    { name: 'Fare bucket',        desc: 'Position in detected price tier ladder (1 = cheapest)' },
+        dtdFloor:          { name: 'Booking-stage',      desc: 'vs cheapest observed at this days-to-departure' },
+        siblingIndependence:{ name: 'Nearby dates',      desc: 'Whether adjacent dates are cheaper than this one' },
+        absoluteFloor:     { name: 'All-time low',       desc: 'Proximity to historical minimum price' },
+        windowTrend:       { name: 'Window trend',       desc: 'Direction of surrounding fare prices over time' },
+      };
+
       const sigsEl = document.getElementById('hcard-signals');
       sigsEl.innerHTML = '';
-      if (a.signals) {
-        for (const [key, sig] of Object.entries(a.signals)) {
-          const meta = SIGNAL_META[key] || { name: key, desc: '' };
-          const pct = sig.max > 0 ? (sig.value / sig.max) * 100 : 0;
-          const row = document.createElement('div');
-          row.className = 'signal-row' + (sig.active ? '' : ' inactive');
-          row.innerHTML = `
-            <div>
-              <div class="sig-name">${escapeHtml(meta.name)}</div>
-            </div>
-            <div class="sig-desc">${escapeHtml(meta.desc)}${!sig.active ? ' <em>(no data)</em>' : ''}</div>
-            <div class="sig-score-wrap">
-              <div class="sig-bar-wrap">
-                <div class="sig-bar-fill" style="width:${sig.active ? pct : 0}%"></div>
-              </div>
-              <span class="sig-score-text">${sig.active ? sig.value + '\u00a0/\u00a0' + sig.max : '—'}</span>
-            </div>
-          `;
-          sigsEl.appendChild(row);
-        }
+      const signals = a.signals || {};
+      for (const key of Object.keys(SIGNAL_META)) {
+        const sig = signals[key];
+        if (!sig) continue;
+        const meta = SIGNAL_META[key];
+        const pct = sig.max > 0 ? (sig.value / sig.max) * 100 : 0;
+        const row = document.createElement('div');
+        row.className = 'signal-row' + (sig.active ? '' : ' inactive');
+        row.innerHTML =
+          '<div><div class="sig-name">' + escapeHtml(meta.name) + '</div></div>' +
+          '<div class="sig-desc">' + escapeHtml(meta.desc) + (!sig.active ? ' <em>(no data)</em>' : '') + '</div>' +
+          '<div class="sig-score-wrap">' +
+            '<div class="sig-bar-wrap"><div class="sig-bar-fill" style="width:' + (sig.active ? pct : 0) + '%"></div></div>' +
+            '<span class="sig-score-text">' + (sig.active ? sig.value + '\u00a0/\u00a0' + sig.max : '\u2014') + '</span>' +
+          '</div>';
+        sigsEl.appendChild(row);
       }
 
       // Updated
       const updEl = document.getElementById('hcard-updated');
-      if (a.timestamp) {
-        updEl.textContent = 'Updated ' + new Date(a.timestamp).toLocaleString();
+      if (a.updated_at) {
+        updEl.textContent = 'Updated ' + new Date(a.updated_at).toLocaleString();
       } else {
         updEl.textContent = '';
       }
 
-      // Reset toggle state when switching flights
+      // Reset toggle state
       signalsVisible = false;
       sigsEl.style.display = 'none';
       document.getElementById('hcard-toggle').textContent = 'Show signals \u25be';
@@ -625,126 +1019,24 @@
         : 'Show signals \u25be';
     }
 
-    async function init() {
-      let data, analysisData;
-      try {
-        const res = await fetch('data/prices.json');
-        if (!res.ok) throw new Error('not found');
-        data = await res.json();
-      } catch {
-        data = {};
-      }
-      try {
-        const res = await fetch('data/analysis.json');
-        analysisData = res.ok ? await res.json() : {};
-      } catch {
-        analysisData = {};
-      }
+    // ---- Chart ----
 
-      const rawIds = Object.keys(data).filter(id => data[id].length > 0);
-      if (rawIds.length === 0) {
-        document.getElementById('empty-state').style.display = 'block';
+    function renderChart(prices) {
+      const section = document.getElementById('chart-section');
+      if (!prices || prices.length === 0) {
+        section.style.display = 'none';
         return;
       }
+      section.style.display = 'block';
 
-      const flightIds = sortedFlightIds(rawIds);
+      const currency = prices.find(p => p.currency)?.currency || 'RON';
+      const validPrices = prices.filter(p => p.price != null).map(p => Number(p.price));
+      const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : null;
 
-      // Last updated (global)
-      const allEntries = flightIds.flatMap(id => data[id]);
-      const lastTimestamp = allEntries.reduce(
-        (latest, e) => e.timestamp > latest ? e.timestamp : latest, ''
-      );
-      if (lastTimestamp) {
-        document.getElementById('last-updated').textContent =
-          'Updated ' + new Date(lastTimestamp).toLocaleString();
-      }
-
-      // Build flight rows
-      const listEl = document.getElementById('flight-list');
-      const cardData = {};
-
-      for (const id of flightIds) {
-        const entries = data[id];
-        const prices = entries.filter(e => e.price !== null).map(e => e.price);
-        const currency = entries.find(e => e.currency)?.currency || 'RON';
-        const latestPrice = entries[entries.length - 1].price;
-        const min = prices.length ? Math.min(...prices) : null;
-        const max = prices.length ? Math.max(...prices) : null;
-
-        let indicatorClass = 'amber';
-        if (latestPrice !== null && min !== null && max !== null) {
-          const range = max - min;
-          if (range === 0 || latestPrice <= min * 1.1) indicatorClass = 'green';
-          else if (latestPrice >= max * 0.9) indicatorClass = 'red';
-        }
-
-        cardData[id] = { min, max, currency, prices };
-
-        const item = document.createElement('div');
-        item.className = 'flight-item';
-        item.dataset.id = id;
-        item.innerHTML = `
-          <div class="indicator ${indicatorClass}"></div>
-          <span class="flight-label">${escapeHtml(formatFlightId(id))}</span>
-          <div class="flight-range">
-            <div class="range-item">
-              <span class="range-label">Min</span>
-              <span class="range-value">${min !== null ? min.toLocaleString() : '—'}</span>
-            </div>
-            <div class="range-item">
-              <span class="range-label">Max</span>
-              <span class="range-value">${max !== null ? max.toLocaleString() : '—'}</span>
-            </div>
-          </div>
-          <div class="current-badge">${latestPrice !== null ? latestPrice.toLocaleString() + '\u00a0' + currency : 'N/A'}</div>
-        `;
-
-        item.addEventListener('click', () => {
-          setActiveItem(id);
-          renderHeuristicCard(id, analysisData);
-          renderChart(data, id, cardData);
-          const sel = document.getElementById('flight-select');
-          if (sel) sel.value = id;
-        });
-
-        listEl.appendChild(item);
-      }
-
-      // Flight selector (for chart)
-      const select = document.getElementById('flight-select');
-      for (const id of flightIds) {
-        const opt = document.createElement('option');
-        opt.value = id;
-        opt.textContent = formatFlightId(id);
-        select.appendChild(opt);
-      }
-
-      if (flightIds.length > 1) {
-        document.getElementById('selector-container').style.display = 'block';
-        select.addEventListener('change', () => {
-          setActiveItem(select.value);
-          renderHeuristicCard(select.value, analysisData);
-          renderChart(data, select.value, cardData);
-        });
-      }
-
-      document.getElementById('chart-section').style.display = 'block';
-      setActiveItem(flightIds[0]);
-      renderHeuristicCard(flightIds[0], analysisData);
-      renderChart(data, flightIds[0], cardData);
-    }
-
-    function setActiveItem(id) {
-      document.querySelectorAll('.flight-item').forEach(el => {
-        el.classList.toggle('active', el.dataset.id === id);
-      });
-    }
-
-    function renderChart(data, flightId, cardData) {
-      const entries = data[flightId];
-      const { min: minPrice, currency } = cardData[flightId];
-
-      const dataPoints = entries.map(e => ({ x: new Date(e.timestamp), y: e.price }));
+      const dataPoints = prices.map(p => ({
+        x: new Date(p.timestamp),
+        y: p.price != null ? Number(p.price) : null
+      }));
 
       const ctx = document.getElementById('price-chart').getContext('2d');
       if (chart) chart.destroy();
@@ -755,7 +1047,7 @@
 
       const datasets = [
         {
-          label: `Price (${currency})`,
+          label: 'Price (' + currency + ')',
           data: dataPoints,
           borderColor: '#3b82f6',
           backgroundColor: gradient,
@@ -772,7 +1064,7 @@
 
       if (minPrice !== null) {
         datasets.push({
-          label: `Low: ${minPrice.toLocaleString()} ${currency}`,
+          label: 'Low: ' + minPrice.toLocaleString() + ' ' + currency,
           data: dataPoints.map(p => ({ x: p.x, y: minPrice })),
           borderColor: '#22c55e',
           borderDash: [5, 4],
@@ -814,7 +1106,7 @@
                 label: item => {
                   if (item.datasetIndex !== 0) return null;
                   const val = item.parsed.y;
-                  return val !== null ? ` ${val.toLocaleString()} ${currency}` : ' No data';
+                  return val !== null ? ' ' + val.toLocaleString() + ' ' + currency : ' No data';
                 }
               }
             }
@@ -839,6 +1131,35 @@
               border: { color: '#e2e8f0' },
             }
           }
+        }
+      });
+    }
+
+    // ---- Init ----
+
+    async function init() {
+      // Check for existing session
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session) {
+        currentUser = session.user;
+        document.getElementById('user-email').textContent = currentUser.email || '';
+        showApp();
+        loadFlights();
+      } else {
+        showLogin();
+      }
+
+      // Listen for auth changes
+      supabase.auth.onAuthStateChange((event, session) => {
+        if (session) {
+          currentUser = session.user;
+          document.getElementById('user-email').textContent = currentUser.email || '';
+          showApp();
+          loadFlights();
+        } else {
+          currentUser = null;
+          showLogin();
         }
       });
     }
