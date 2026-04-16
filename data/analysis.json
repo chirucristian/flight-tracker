@@ -8,7 +8,7 @@
     "currentPrice": 949,
     "currency": "RON",
     "allTimeMin": 659,
-    "daysToDeparture": 43,
+    "daysToDeparture": 42,
     "sevenDayChangePct": 32,
     "dtdFloor": 659,
     "absoluteMin": 659,
@@ -110,7 +110,7 @@
       }
     ],
     "currentBucketIndex": 8,
-    "timestamp": "2026-04-16T11:51:21.436Z"
+    "timestamp": "2026-04-16T13:03:28.866Z"
   },
   "otp-ory-2026-05-30": {
     "tier": "SKIP",
@@ -121,7 +121,7 @@
     "currentPrice": 789,
     "currency": "RON",
     "allTimeMin": 609,
-    "daysToDeparture": 44,
+    "daysToDeparture": 43,
     "sevenDayChangePct": 29.6,
     "dtdFloor": 609,
     "absoluteMin": 609,
@@ -227,7 +227,7 @@
       }
     ],
     "currentBucketIndex": 9,
-    "timestamp": "2026-04-16T11:51:21.436Z"
+    "timestamp": "2026-04-16T13:03:28.866Z"
   },
   "otp-ory-2026-05-31": {
     "tier": "GOOD DEAL",
@@ -238,7 +238,7 @@
     "currentPrice": 349,
     "currency": "RON",
     "allTimeMin": 349,
-    "daysToDeparture": 45,
+    "daysToDeparture": 44,
     "sevenDayChangePct": -5.4,
     "dtdFloor": 349,
     "absoluteMin": 349,
@@ -337,6 +337,6 @@
       }
     ],
     "currentBucketIndex": 2,
-    "timestamp": "2026-04-16T11:51:21.436Z"
+    "timestamp": "2026-04-16T13:03:28.866Z"
   }
 }
