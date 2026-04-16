@@ -817,7 +817,7 @@
       chartSection.style.display = 'none';
       hCard.style.display = 'none';
 
-      const { data: flights, error } = await supabase
+      const { data: flights, error } = await sb
         .from('tracked_flights')
         .select('*')
         .order('date', { ascending: true });
@@ -873,7 +873,7 @@
         const badge = document.getElementById('badge-' + fKey);
         if (!badge) continue;
 
-        const { data: prices } = await supabase
+        const { data: prices } = await sb
           .from('price_history')
           .select('price,currency')
           .eq('flight_key', fKey)
