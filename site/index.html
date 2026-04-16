@@ -574,7 +574,7 @@
 <body>
   <div class="container">
     <!-- Login screen -->
-    <div id="login-screen" class="login-screen" style="display:none;">
+    <div id="login-screen" class="login-screen">
       <h2>Flight Price Tracker</h2>
       <p>Track Wizzair flight prices, get heuristic buy recommendations, and never overpay for a flight.</p>
       <button class="google-btn" onclick="signInWithGoogle()">
@@ -682,7 +682,7 @@
     const SUPABASE_URL = '__SUPABASE_URL_PLACEHOLDER__';
     const SUPABASE_ANON_KEY = '__SUPABASE_ANON_KEY_PLACEHOLDER__';
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let chart = null;
     let signalsVisible = false;
@@ -693,7 +693,7 @@
     // ---- Auth ----
 
     async function signInWithGoogle() {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error } = await sb.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: 'https://chirucristian.github.io/flight-tracker/' }
       });
@@ -701,7 +701,7 @@
     }
 
     async function signOut() {
-      await supabase.auth.signOut();
+      await sb.auth.signOut();
       currentUser = null;
       showLogin();
     }
@@ -766,7 +766,7 @@
 
       if (!origin || !destination || !date) return;
 
-      const { error } = await supabase.from('tracked_flights').insert({
+      const { error } = await sb.from('tracked_flights').insert({
         user_id: currentUser.id,
         origin,
         destination,
@@ -794,7 +794,7 @@
 
     async function deleteFlight(id, e) {
       e.stopPropagation();
-      const { error } = await supabase.from('tracked_flights').delete().eq('id', id);
+      const { error } = await sb.from('tracked_flights').delete().eq('id', id);
       if (error) {
         showError('Failed to delete flight: ' + error.message);
         return;
@@ -901,8 +901,8 @@
 
       // Load analysis + price history in parallel
       const [analysisResult, pricesResult] = await Promise.all([
-        supabase.from('analysis_results').select('*').eq('flight_key', fKey).maybeSingle(),
-        supabase.from('price_history').select('*').eq('flight_key', fKey).order('timestamp', { ascending: true }),
+        sb.from('analysis_results').select('*').eq('flight_key', fKey).maybeSingle(),
+        sb.from('price_history').select('*').eq('flight_key', fKey).order('timestamp', { ascending: true }),
       ]);
 
       renderHeuristicCard(analysisResult.data);
@@ -1139,7 +1139,7 @@
 
     async function init() {
       // Check for existing session
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await sb.auth.getSession();
 
       if (session) {
         currentUser = session.user;
@@ -1151,7 +1151,7 @@
       }
 
       // Listen for auth changes
-      supabase.auth.onAuthStateChange((event, session) => {
+      sb.auth.onAuthStateChange((event, session) => {
         if (session) {
           currentUser = session.user;
           document.getElementById('user-email').textContent = currentUser.email || '';
@@ -1164,7 +1164,10 @@
       });
     }
 
-    init();
+    init().catch(err => {
+      console.error('Init failed:', err);
+      document.getElementById('login-screen').style.display = 'flex';
+    });
   </script>
 </body>
 </html>
