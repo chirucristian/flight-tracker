@@ -1,15 +1,15 @@
 {
   "otp-ory-2026-05-29": {
     "tier": "SKIP",
-    "quality": 20,
+    "quality": 5,
     "urgency": "high",
-    "urgencyScore": 7,
+    "urgencyScore": 8,
     "confidence": "medium",
-    "currentPrice": 719,
+    "currentPrice": 789,
     "currency": "RON",
     "allTimeMin": 659,
     "daysToDeparture": 43,
-    "sevenDayChangePct": 0,
+    "sevenDayChangePct": 9.7,
     "dtdFloor": 659,
     "absoluteMin": 659,
     "bucketTransition": null,
@@ -18,17 +18,17 @@
     "distinctObsDays": 4,
     "signals": {
       "dowPercentile": {
-        "value": 1.7,
+        "value": 0,
         "max": 30,
         "active": true
       },
       "bucketPosition": {
-        "value": 3.1,
+        "value": 0,
         "max": 25,
         "active": true
       },
       "dtdFloor": {
-        "value": 9.5,
+        "value": 3.2,
         "max": 15,
         "active": true
       },
@@ -38,7 +38,7 @@
         "active": true
       },
       "absoluteFloor": {
-        "value": 6.4,
+        "value": 2.1,
         "max": 10,
         "active": true
       },
@@ -50,14 +50,15 @@
     },
     "reasons": [
       "expensive for this weekday in the window",
-      "bucket 8/9 (1 = cheapest)",
-      "56% cheaper on 2026-06-01",
+      "top of 9 detected fare buckets",
+      "well above best price seen at this booking stage",
+      "60% cheaper on 2026-06-01",
       "fare window trending up 14.3% — broader price pressure"
     ],
     "siblingSuggestion": {
       "date": "2026-06-01",
       "price": 319,
-      "savingsPct": 56
+      "savingsPct": 60
     },
     "bucketCeilingWarning": false,
     "buckets": [
@@ -107,8 +108,8 @@
         "count": 2
       }
     ],
-    "currentBucketIndex": 7,
-    "timestamp": "2026-04-16T06:28:00.764Z"
+    "currentBucketIndex": 8,
+    "timestamp": "2026-04-16T08:21:56.493Z"
   },
   "otp-ory-2026-05-30": {
     "tier": "SKIP",
@@ -225,19 +226,19 @@
       }
     ],
     "currentBucketIndex": 9,
-    "timestamp": "2026-04-16T06:28:00.764Z"
+    "timestamp": "2026-04-16T08:21:56.493Z"
   },
   "otp-ory-2026-05-31": {
-    "tier": "HOLD",
-    "quality": 69,
+    "tier": "SKIP",
+    "quality": 36,
     "urgency": "high",
-    "urgencyScore": 8,
+    "urgencyScore": 9,
     "confidence": "medium",
-    "currentPrice": 369,
+    "currentPrice": 419,
     "currency": "RON",
     "allTimeMin": 349,
     "daysToDeparture": 45,
-    "sevenDayChangePct": 5.7,
+    "sevenDayChangePct": 13.6,
     "dtdFloor": 349,
     "absoluteMin": 349,
     "bucketTransition": null,
@@ -246,27 +247,27 @@
     "distinctObsDays": 4,
     "signals": {
       "dowPercentile": {
-        "value": 18.3,
+        "value": 10,
         "max": 30,
         "active": true
       },
       "bucketPosition": {
-        "value": 19.4,
+        "value": 16.7,
         "max": 25,
         "active": true
       },
       "dtdFloor": {
-        "value": 11.6,
+        "value": 3,
         "max": 15,
         "active": true
       },
       "siblingIndependence": {
-        "value": 10.3,
+        "value": 1,
         "max": 15,
         "active": true
       },
       "absoluteFloor": {
-        "value": 7.7,
+        "value": 2,
         "max": 10,
         "active": true
       },
@@ -277,10 +278,17 @@
       }
     },
     "reasons": [
-      "bucket 3/10 (1 = cheapest)",
+      "bucket 4/10 (1 = cheapest)",
+      "well above best price seen at this booking stage",
+      "24% cheaper on 2026-06-01",
+      "up 14% in the last 7 days — window closing",
       "near top of current bucket"
     ],
-    "siblingSuggestion": null,
+    "siblingSuggestion": {
+      "date": "2026-06-01",
+      "price": 319,
+      "savingsPct": 24
+    },
     "bucketCeilingWarning": true,
     "buckets": [
       {
@@ -334,7 +342,7 @@
         "count": 2
       }
     ],
-    "currentBucketIndex": 2,
-    "timestamp": "2026-04-16T06:28:00.764Z"
+    "currentBucketIndex": 3,
+    "timestamp": "2026-04-16T08:21:56.493Z"
   }
 }
