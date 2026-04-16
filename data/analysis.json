@@ -108,7 +108,7 @@
       }
     ],
     "currentBucketIndex": 7,
-    "timestamp": "2026-04-16T01:27:56.296Z"
+    "timestamp": "2026-04-16T04:43:37.381Z"
   },
   "otp-ory-2026-05-30": {
     "tier": "SKIP",
@@ -225,7 +225,7 @@
       }
     ],
     "currentBucketIndex": 9,
-    "timestamp": "2026-04-16T01:27:56.296Z"
+    "timestamp": "2026-04-16T04:43:37.381Z"
   },
   "otp-ory-2026-05-31": {
     "tier": "HOLD",
@@ -335,6 +335,6 @@
       }
     ],
     "currentBucketIndex": 2,
-    "timestamp": "2026-04-16T01:27:56.296Z"
+    "timestamp": "2026-04-16T04:43:37.381Z"
   }
 }
