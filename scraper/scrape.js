@@ -63,8 +63,7 @@ function flightLabel(f) {
 }
 
 function calculateRealPrice(chartPrice) {
-  const withMarkup = chartPrice + 50;
-  return Math.ceil((withMarkup - 9) / 10) * 10 + 9;
+  return chartPrice + 10;
 }
 
 function getApiUrl() {
