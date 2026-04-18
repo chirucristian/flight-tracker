@@ -62,7 +62,10 @@ function flightLabel(f) {
   return `${f.origin} → ${f.destination} · ${f.date}${f.time ? " · " + f.time : ""}`;
 }
 
-function calculateRealPrice(chartPrice) {
+function calculateRealPrice(chartPrice, currency) {
+  if (currency === "EUR") {
+    return chartPrice + 10;
+  }
   const withMarkup = chartPrice + 50;
   return Math.ceil((withMarkup - 9) / 10) * 10 + 9;
 }
@@ -149,8 +152,8 @@ function extractTargetMatch(flight, entries) {
       entry.price?.amount > 0
     ) {
       const chartPrice = entry.price.amount;
-      const price = calculateRealPrice(chartPrice);
       const currency = entry.price.currencyCode;
+      const price = calculateRealPrice(chartPrice, currency);
       console.log(
         `  >>> FOUND: chart=${chartPrice}, real=${price} ${currency} (date ${entryDate})`
       );
@@ -561,8 +564,8 @@ async function insertWindowCacheEntries(fKey, newEntries, observedAt) {
     .map((e) => ({
       flight_key: fKey,
       date: (e.date || "").substring(0, 10),
-      price: calculateRealPrice(e.price.amount),
       currency: e.price.currencyCode || "EUR",
+      price: calculateRealPrice(e.price.amount, e.price.currencyCode || "EUR"),
       observed_at: observedAt,
     }));
   if (rows.length === 0) return;
