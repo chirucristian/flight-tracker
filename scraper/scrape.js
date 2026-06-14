@@ -70,11 +70,33 @@ function calculateRealPrice(chartPrice, currency) {
   return Math.ceil((withMarkup - 9) / 10) * 10 + 9;
 }
 
-function getApiUrl() {
+async function getApiUrl() {
   const version = fs.readFileSync(path.join(__dirname, "api-version.txt"), "utf-8").trim();
-  const apiUrl = `https://be.wizzair.com/${version}`;
-  console.log(`  API: ${apiUrl}`);
-  return apiUrl;
+  const fallbackApiUrl = `https://be.wizzair.com/${version}/Api`;
+
+  try {
+    const res = await fetch("https://www.wizzair.com/", {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+    });
+    if (res.ok) {
+      const html = await res.text();
+      const match = html.match(/apiUrl:"([^"]+)"/);
+      if (match?.[1]) {
+        console.log(`  API: ${match[1]} (live config)`);
+        return match[1];
+      }
+    }
+    console.warn(`  Failed to read live API config: ${res.status} ${res.statusText}`);
+  } catch (err) {
+    console.warn(`  Failed to read live API config: ${err.message}`);
+  }
+
+  console.log(`  API: ${fallbackApiUrl} (fallback)`);
+  return fallbackApiUrl;
 }
 
 function addDays(dateStr, days) {
@@ -87,7 +109,7 @@ function addDays(dateStr, days) {
 
 async function fetchFareChartBlock(apiUrl, flight, centerDate, debugSuffix) {
   const id = flightId(flight);
-  const url = `${apiUrl}/Api/asset/farechart`;
+  const url = `${apiUrl}/asset/farechart`;
   const body = {
     isRescueFare: false,
     adultCount: 1,
@@ -651,7 +673,7 @@ async function main() {
   }
   console.log(`Cleared farechart-* files from debug/`);
 
-  const apiUrl = getApiUrl();
+  const apiUrl = await getApiUrl();
 
   const results = [];
   for (const flight of flights) {
@@ -687,10 +709,10 @@ async function main() {
       raw: result.raw,
     };
 
-    // Insert new price reading
-    await insertPriceHistory(fKey, entry);
-
     if (result.price !== null) {
+      // Insert only successful readings; price_history.price is not nullable.
+      await insertPriceHistory(fKey, entry);
+
       const previousPrices = previousEntries
         .filter((e) => e.price !== null)
         .map((e) => e.price);
