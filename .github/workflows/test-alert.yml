@@ -1,0 +1,41 @@
+name: Test Buy Alert
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: "Account email to notify (must be your Resend account owner address)"
+        required: true
+        default: "cchiru40@gmail.com"
+      origin:
+        description: "Optional flight origin (e.g. OTP). Leave blank to use your latest tracked flight."
+        required: false
+      destination:
+        description: "Optional flight destination (e.g. ORY)."
+        required: false
+      date:
+        description: "Optional flight date (YYYY-MM-DD)."
+        required: false
+
+jobs:
+  test-alert:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      ALERT_FROM: ${{ secrets.ALERT_FROM }}
+      TEST_EMAIL: ${{ github.event.inputs.email }}
+      TEST_ORIGIN: ${{ github.event.inputs.origin }}
+      TEST_DEST: ${{ github.event.inputs.destination }}
+      TEST_DATE: ${{ github.event.inputs.date }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        working-directory: scraper
+        run: npm ci
+      - name: Send test alert
+        working-directory: scraper
+        run: node send-test-alert.js
