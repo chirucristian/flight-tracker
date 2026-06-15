@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { analyze } = require("./analyze");
+const { sendBuyAlerts } = require("./notify");
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
@@ -832,6 +833,20 @@ async function main() {
           },
           reasons: analysis.reasons,
         });
+
+        // ---- Per-user email alerts (fan-out + dedup/re-arm) ----
+        try {
+          await sendBuyAlerts({
+            flight,
+            flightKey: fKey,
+            analysis,
+            price: result.price,
+            currency: result.currency,
+            chartUrl,
+          });
+        } catch (err) {
+          console.error(`  [notify] error for ${id}: ${err.message}`);
+        }
       }
     }
   }

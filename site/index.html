@@ -198,6 +198,36 @@
       align-items: flex-end;
     }
 
+    /* Alerts settings panel */
+    .settings-check {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8125rem;
+      color: #334155;
+      cursor: pointer;
+      user-select: none;
+    }
+    .settings-check input { width: 15px; height: 15px; accent-color: #2563eb; cursor: pointer; }
+
+    .settings-select {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.8125rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 0.45rem 0.625rem;
+      color: #334155;
+      background: #f8fafc;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.12s;
+    }
+    .settings-select:focus { border-color: #93c5fd; }
+
+    .settings-status { font-size: 0.6875rem; color: #94a3b8; margin-top: 0.625rem; min-height: 0.9rem; }
+    .settings-status.ok { color: #15803d; }
+    .settings-status.err { color: #b91c1c; }
+
     /* Flight list */
     .flight-list {
       display: flex;
@@ -591,12 +621,38 @@
           <span class="header-subtitle">Tracking Wizzair prices hourly</span>
           <div class="header-right">
             <span id="user-email" class="user-email"></span>
+            <button class="btn btn-sm" onclick="toggleSettings()">&#9881; Alerts</button>
             <button class="btn btn-sm" onclick="signOut()">Sign out</button>
           </div>
         </div>
       </header>
 
       <div id="error-container"></div>
+
+      <div id="settings-panel" class="add-flight-form">
+        <div class="form-title">Email alerts</div>
+        <label class="settings-check">
+          <input type="checkbox" id="alerts-enabled" />
+          <span>Email me when a tracked flight becomes a good buy</span>
+        </label>
+        <div class="form-row" style="margin-top:0.875rem;">
+          <div class="form-group">
+            <label for="min-tier">Alert me on</label>
+            <select id="min-tier" class="settings-select">
+              <option value="GOOD DEAL">Good deal or better</option>
+              <option value="BUY NOW">Buy now only</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="max-price">Max price (optional)</label>
+            <input type="number" id="max-price" placeholder="any" min="0" step="1" style="width:110px;" />
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-sm btn-primary" onclick="savePreferences()">Save</button>
+          </div>
+        </div>
+        <div id="settings-status" class="settings-status"></div>
+      </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
         <span style="font-size:0.8125rem;font-weight:600;color:#475569;">Your flights</span>
@@ -746,6 +802,67 @@
       if (q >= 55) return '#3b82f6';
       if (q >= 40) return '#f59e0b';
       return '#ef4444';
+    }
+
+    // ---- Alert preferences ----
+
+    function toggleSettings() {
+      const panel = document.getElementById('settings-panel');
+      panel.classList.toggle('open');
+      if (panel.classList.contains('open')) loadPreferences();
+    }
+
+    // Keep an up-to-date email on file for the scraper to send alerts to.
+    // Only user_id + email are sent, so existing alert settings are preserved.
+    async function ensurePreferences() {
+      if (!currentUser) return;
+      const { error } = await sb
+        .from('notification_preferences')
+        .upsert({ user_id: currentUser.id, email: currentUser.email }, { onConflict: 'user_id' });
+      if (error) console.warn('ensurePreferences failed:', error.message);
+    }
+
+    async function loadPreferences() {
+      if (!currentUser) return;
+      const { data, error } = await sb
+        .from('notification_preferences')
+        .select('alerts_enabled, min_tier, max_price')
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
+      if (error) { setSettingsStatus('Could not load settings: ' + error.message, 'err'); return; }
+
+      document.getElementById('alerts-enabled').checked = data ? !!data.alerts_enabled : true;
+      document.getElementById('min-tier').value = data && data.min_tier ? data.min_tier : 'GOOD DEAL';
+      document.getElementById('max-price').value = data && data.max_price != null ? data.max_price : '';
+      setSettingsStatus('', '');
+    }
+
+    async function savePreferences() {
+      if (!currentUser) return;
+      const maxRaw = document.getElementById('max-price').value.trim();
+      const maxPrice = maxRaw === '' ? null : Number(maxRaw);
+      if (maxPrice !== null && (!Number.isFinite(maxPrice) || maxPrice < 0)) {
+        setSettingsStatus('Max price must be a positive number.', 'err');
+        return;
+      }
+      const { error } = await sb
+        .from('notification_preferences')
+        .upsert({
+          user_id: currentUser.id,
+          email: currentUser.email,
+          alerts_enabled: document.getElementById('alerts-enabled').checked,
+          min_tier: document.getElementById('min-tier').value,
+          max_price: maxPrice,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+      if (error) { setSettingsStatus('Save failed: ' + error.message, 'err'); return; }
+      setSettingsStatus('Saved.', 'ok');
+    }
+
+    function setSettingsStatus(msg, kind) {
+      const el = document.getElementById('settings-status');
+      el.textContent = msg;
+      el.className = 'settings-status' + (kind ? ' ' + kind : '');
     }
 
     // ---- Add/Delete flight form ----
@@ -1145,6 +1262,7 @@
         currentUser = session.user;
         document.getElementById('user-email').textContent = currentUser.email || '';
         showApp();
+        ensurePreferences();
         await loadFlights();
       } else {
         showLogin();
@@ -1157,6 +1275,7 @@
           currentUser = session.user;
           document.getElementById('user-email').textContent = currentUser.email || '';
           showApp();
+          ensurePreferences();
           loadFlights();
         } else {
           currentUser = null;

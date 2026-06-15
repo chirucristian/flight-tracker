@@ -18,6 +18,8 @@ jobs:
       GITHUB_REPOSITORY: ${{ github.repository }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      ALERT_FROM: ${{ secrets.ALERT_FROM }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
