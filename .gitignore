@@ -1,0 +1,5 @@
+# Dependencies
+node_modules/
+
+# Ephemeral scrape artifacts (regenerated each run, not source)
+debug/

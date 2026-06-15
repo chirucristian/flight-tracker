@@ -6,7 +6,6 @@ const { sendBuyAlerts } = require("./notify");
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
 
-const FLIGHTS_PATH = path.join(__dirname, "flights.json");
 const DEBUG_DIR = path.join(__dirname, "..", "debug");
 const HEURISTIC_LOG_PATH = path.join(DEBUG_DIR, "heuristic-log.jsonl");
 
@@ -645,20 +644,13 @@ async function main() {
     process.exit(1);
   }
 
-  // Load flights: try Supabase first, fall back to flights.json
-  let flights = await loadFlightsFromSupabase();
+  // Load flights from Supabase — the single source of truth.
+  const flights = await loadFlightsFromSupabase();
   if (!flights || flights.length === 0) {
-    console.log("No flights from Supabase — falling back to flights.json");
-    const raw = JSON.parse(fs.readFileSync(FLIGHTS_PATH, "utf-8"));
-    flights = raw.map((f) => ({
-      origin: f.from,
-      destination: f.to,
-      date: f.date,
-      time: f.time || "",
-    }));
-  } else {
-    console.log(`Loaded ${flights.length} flight(s) from Supabase (deduplicated)`);
+    console.log("No tracked flights — nothing to scrape.");
+    return;
   }
+  console.log(`Loaded ${flights.length} flight(s) from Supabase (deduplicated)`);
 
   for (const f of flights) {
     console.log(`  - ${flightLabel(f)} [${flightId(f)}]`);
